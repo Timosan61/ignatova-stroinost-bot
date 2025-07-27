@@ -339,11 +339,38 @@ async def process_webhook(request: Request):
                     else:
                         response = f"👋 Привет, {user_name}! Добро пожаловать в ignatova-stroinost-bot бот!"
                 
+                elif text.startswith("/voice_test"):
+                    # Тестовая команда для проверки голосового сервиса
+                    if AI_ENABLED and agent.voice_service:
+                        service_info = agent.voice_service.get_service_info()
+                        test_results = await agent.voice_service.test_service()
+                        
+                        response = f"""🎤 Статус голосового сервиса:
+                        
+📊 **Общая информация:**
+• Сервис: {service_info['service_name']}
+• Статус: {service_info['status']}
+• Язык: {service_info['default_language']}
+• Макс. длительность: {service_info['max_duration']}с
+
+🔧 **Компоненты:**
+• Telegram: {"✅" if test_results['telegram_token'] else "❌"}
+• OpenAI: {"✅" if test_results['openai_key'] else "❌"}
+• Whisper: {"✅" if test_results['whisper_client'] else "❌"}
+• Подключение: {"✅" if test_results['whisper_connection'] else "❌"}
+
+🎯 **Готовность:** {"✅ Готов" if test_results['service_ready'] else "❌ Не готов"}
+
+📝 **Поддерживаемые форматы:** {', '.join(service_info['supported_formats'][:5])}"""
+                    else:
+                        response = "❌ Голосовой сервис недоступен"
+                
                 elif text.startswith("/help"):
                     voice_status = "✅ Поддерживаются" if (AI_ENABLED and agent.voice_service) else "❌ Не поддерживаются"
                     response = f"""ℹ️ Помощь по ignatova-stroinost-bot:
 /start - начать работу
 /help - показать помощь
+/voice_test - проверить голосовой сервис
 
 📝 Текстовые сообщения: ✅ Поддерживаются
 🎤 Голосовые сообщения: {voice_status}
