@@ -126,21 +126,32 @@ async def process_voice_transcription(voice_data: dict, user_id: int) -> dict:
         if not voice_service:
             return {"success": False, "error": "Voice service not available"}
         
+        # Правильно извлекаем file_id для разных типов аудио данных
         file_id = voice_data.get('file_id')
         if not file_id:
+            # Для обычных аудио сообщений file_id находится внутри audio структуры
+            file_id = voice_data.get('audio', {}).get('file_id') if isinstance(voice_data.get('audio'), dict) else None
+        
+        if not file_id:
+            logger.error(f"❌ file_id не найден в voice_data: {voice_data}")
             return {"success": False, "error": "No file_id in voice data"}
+        
+        logger.info(f"🔑 Извлеченный file_id: {file_id}")
         
         # Используем простой метод транскрибации
         result = await voice_service.transcribe_voice_message(
             voice_data, 
             str(user_id), 
-            str(voice_data.get('file_id', 'unknown'))
+            str(file_id)
         )
         
         return result or {"success": False, "error": "Voice processing failed"}
         
     except Exception as e:
         logger.error(f"❌ Ошибка транскрипции голоса: {e}")
+        logger.error(f"📋 voice_data: {voice_data}")
+        import traceback
+        logger.error(f"📄 Трейс: {traceback.format_exc()}")
         return {"success": False, "error": f"Ошибка транскрипции: {str(e)}"}
 
 # === ФУНКЦИЯ ДЛЯ BUSINESS API ===
