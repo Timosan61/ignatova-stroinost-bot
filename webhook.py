@@ -767,12 +767,21 @@ async def production_status():
         import sys
         from datetime import datetime
         
+        # Безопасная проверка OpenAI ключа
+        openai_key_info = {
+            "exists": bool(OPENAI_API_KEY),
+            "length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
+            "starts_with": OPENAI_API_KEY[:10] + "..." if OPENAI_API_KEY and len(OPENAI_API_KEY) > 10 else "None",
+            "format_check": OPENAI_API_KEY.startswith("sk-") if OPENAI_API_KEY else False
+        }
+        
         status = {
             "timestamp": datetime.now().isoformat(),
             "voice_service": {
                 "initialized": voice_service is not None,
                 "telegram_token": bool(TELEGRAM_BOT_TOKEN),
-                "openai_key": bool(OPENAI_API_KEY)
+                "openai_key": bool(OPENAI_API_KEY),
+                "openai_key_details": openai_key_info
             },
             "ai_agent": {
                 "enabled": AI_ENABLED,
@@ -798,6 +807,57 @@ async def production_status():
         
         return {"status": "success", "data": status}
         
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@app.get("/debug/test-openai")
+async def test_openai():
+    """Протестировать подключение к OpenAI API"""
+    try:
+        from datetime import datetime
+        
+        if not OPENAI_API_KEY:
+            return {"status": "error", "error": "OpenAI API key not provided"}
+        
+        import openai
+        
+        # Тестируем подключение к OpenAI API
+        try:
+            client = openai.OpenAI(api_key=OPENAI_API_KEY)
+            
+            # Простой тест API - список моделей
+            models = client.models.list()
+            
+            # Проверяем доступность Whisper
+            whisper_available = any("whisper" in model.id for model in models.data)
+            
+            return {
+                "status": "success",
+                "api_key_valid": True,
+                "whisper_available": whisper_available,
+                "total_models": len(models.data),
+                "test_timestamp": datetime.now().isoformat()
+            }
+            
+        except openai.AuthenticationError:
+            return {
+                "status": "error", 
+                "error": "Authentication failed - invalid API key",
+                "api_key_valid": False
+            }
+        except openai.APIError as e:
+            return {
+                "status": "error",
+                "error": f"OpenAI API error: {str(e)}",
+                "api_key_valid": "unknown"
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": f"Connection error: {str(e)}",
+                "api_key_valid": "unknown"
+            }
+            
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
