@@ -317,6 +317,21 @@ async def process_webhook(request: Request):
             chat_id = msg["chat"]["id"]
             text = msg.get("text", "") or msg.get("caption", "")
             user_id = msg.get("from", {}).get("id", "unknown")
+            
+            # Диагностическое логирование типов сообщений
+            message_types = []
+            if msg.get("voice"):
+                message_types.append("voice")
+            if msg.get("audio"):
+                message_types.append("audio")
+            if msg.get("document"):
+                message_types.append("document")
+            if msg.get("text"):
+                message_types.append("text")
+            if msg.get("video_note"):
+                message_types.append("video_note")
+            
+            logger.info(f"📨 Сообщение от {user_id}: типы={message_types}, voice={bool(msg.get('voice'))}, audio={bool(msg.get('audio'))}")
             user_name = msg.get("from", {}).get("first_name", "Пользователь")
             
             # Проверяем наличие голосового сообщения
@@ -782,6 +797,31 @@ async def production_status():
                 status["recent_errors"] = error_lines[-10:]  # Последние 10 ошибок
         
         return {"status": "success", "data": status}
+        
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@app.get("/debug/webhook-info")
+async def webhook_info():
+    """Получить информацию о настройке webhook"""
+    try:
+        import requests
+        
+        # Получаем информацию о webhook
+        webhook_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getWebhookInfo"
+        response = requests.get(webhook_url)
+        webhook_data = response.json()
+        
+        # Проверяем какие типы обновлений разрешены
+        allowed_updates = webhook_data.get("result", {}).get("allowed_updates", [])
+        
+        return {
+            "status": "success",
+            "webhook_info": webhook_data.get("result", {}),
+            "voice_allowed": "message" in allowed_updates or len(allowed_updates) == 0,
+            "all_allowed_updates": allowed_updates,
+            "voice_processing_enabled": voice_service is not None
+        }
         
     except Exception as e:
         return {"status": "error", "error": str(e)}
