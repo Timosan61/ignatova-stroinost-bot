@@ -686,6 +686,30 @@ async def process_webhook(request: Request):
         logger.error(f"❌ Ошибка webhook: {e}")
         return {"ok": False, "error": str(e)}
 
+@app.get("/debug/logs")
+async def get_recent_logs():
+    """Получить последние логи для отладки"""
+    try:
+        import os
+        log_file = "logs/bot.log"
+        if os.path.exists(log_file):
+            with open(log_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                # Возвращаем последние 20 строк
+                recent_lines = lines[-20:] if len(lines) > 20 else lines
+                return {
+                    "status": "success",
+                    "logs": [line.strip() for line in recent_lines],
+                    "total_lines": len(lines)
+                }
+        else:
+            return {
+                "status": "error",
+                "error": "Log file not found"
+            }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
 @app.get("/debug/prompt")
 async def get_current_prompt():
     """Получить информацию о текущих инструкциях"""
