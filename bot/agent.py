@@ -5,10 +5,11 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 
 import openai
+import anthropic
 from zep_cloud.client import AsyncZep
 from zep_cloud.types import Message
 
-from .config import INSTRUCTION_FILE, OPENAI_API_KEY, OPENAI_MODEL, ZEP_API_KEY
+from .config import INSTRUCTION_FILE, OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENAI_MODEL, ANTHROPIC_MODEL, ZEP_API_KEY
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -18,11 +19,31 @@ class TextilProAgent:
     def __init__(self):
         # Инициализируем OpenAI клиент если API ключ доступен
         if OPENAI_API_KEY:
-            self.openai_client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
-            print("✅ OpenAI клиент инициализирован")
+            try:
+                self.openai_client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
+                print("✅ OpenAI клиент инициализирован")
+            except Exception as e:
+                print(f"❌ Ошибка инициализации OpenAI: {e}")
+                self.openai_client = None
         else:
             self.openai_client = None
-            print("⚠️ OpenAI API ключ не найден, используется упрощенный режим")
+            print("⚠️ OpenAI API ключ не найден")
+            
+        # Инициализируем Anthropic клиент если API ключ доступен
+        if ANTHROPIC_API_KEY:
+            try:
+                self.anthropic_client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+                print("✅ Anthropic клиент инициализирован")
+            except Exception as e:
+                print(f"❌ Ошибка инициализации Anthropic: {e}")
+                self.anthropic_client = None
+        else:
+            self.anthropic_client = None
+            print("⚠️ Anthropic API ключ не найден")
+            
+        # Проверяем что хотя бы один LLM доступен
+        if not self.openai_client and not self.anthropic_client:
+            print("⚠️ Ни один LLM не доступен, используется упрощенный режим")
         
         # Инициализируем Zep клиент если API ключ доступен
         if ZEP_API_KEY and ZEP_API_KEY != "test_key":
@@ -181,6 +202,62 @@ class TextilProAgent:
         
         return "\n".join(history) if history else ""
     
+    async def call_llm(self, messages: list, max_tokens: int = 1000, temperature: float = 0.7) -> str:
+        """Роутер LLM запросов с fallback между OpenAI и Anthropic"""
+        
+        # Сначала пробуем OpenAI
+        if self.openai_client:
+            try:
+                logger.info("🤖 Пытаемся использовать OpenAI")
+                response = await self.openai_client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+                result = response.choices[0].message.content
+                logger.info("✅ OpenAI ответ получен")
+                return result
+                
+            except Exception as e:
+                logger.error(f"❌ Ошибка OpenAI: {e}")
+                print(f"❌ OpenAI недоступен: {e}")
+        
+        # Fallback на Anthropic
+        if self.anthropic_client:
+            try:
+                logger.info("🤖 Fallback на Anthropic Claude")
+                
+                # Конвертируем сообщения для Anthropic API
+                system_message = ""
+                user_messages = []
+                
+                for msg in messages:
+                    if msg["role"] == "system":
+                        system_message = msg["content"]
+                    else:
+                        user_messages.append(msg)
+                
+                response = await self.anthropic_client.messages.create(
+                    model=ANTHROPIC_MODEL,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    system=system_message,
+                    messages=user_messages
+                )
+                
+                result = response.content[0].text
+                logger.info("✅ Anthropic ответ получен")
+                return result
+                
+            except Exception as e:
+                logger.error(f"❌ Ошибка Anthropic: {e}")
+                print(f"❌ Anthropic недоступен: {e}")
+        
+        # Если оба LLM недоступны
+        logger.error("❌ Все LLM недоступны")
+        raise Exception("Все LLM провайдеры недоступны")
+    
     async def generate_response(self, user_message: str, session_id: str, user_name: str = None) -> str:
         try:
             system_prompt = self.instruction.get("system_instruction", "")
@@ -205,33 +282,31 @@ class TextilProAgent:
                 {"role": "user", "content": user_message}
             ]
             
-            # Временная заглушка для тестирования
-            if self.openai_client is None:
-                # Простая логика ответов без OpenAI
+            # Используем LLM роутер
+            if self.openai_client or self.anthropic_client:
+                try:
+                    bot_response = await self.call_llm(messages, max_tokens=1000, temperature=0.7)
+                except Exception as llm_error:
+                    logger.error(f"❌ Все LLM недоступны: {llm_error}")
+                    # Fallback на простые ответы если все LLM недоступны
+                    user_message_lower = user_message.lower()
+                    
+                    if any(word in user_message_lower for word in ['привет', 'hello', 'hi', 'здравствуй']):
+                        bot_response = "👋 Привет! Меня зовут Кристина, я консультант ignatova-stroinost. Чем могу помочь?"
+                    elif any(word in user_message_lower for word in ['цена', 'стоимость', 'сколько']):
+                        bot_response = "💰 Цены зависят от объема и типа услуг. Расскажите подробнее о ваших потребностях."
+                    else:
+                        bot_response = f"Поняла ваш вопрос! Подготовлю детальный ответ специально для вас. Минуточку!\n\nКристина, ignatova-stroinost"
+            else:
+                # Простая логика ответов если нет API ключей
                 user_message_lower = user_message.lower()
                 
                 if any(word in user_message_lower for word in ['привет', 'hello', 'hi', 'здравствуй']):
-                    bot_response = "👋 Привет! Меня зовут Анастасия, я консультант Textile Pro. Чем могу помочь?"
+                    bot_response = "👋 Привет! Меня зовут Кристина, я консультант ignatova-stroinost. Чем могу помочь?"
                 elif any(word in user_message_lower for word in ['цена', 'стоимость', 'сколько']):
-                    bot_response = "💰 Цены зависят от объема и типа продукции. Расскажите подробнее о ваших потребностях - количество, тип одежды, материалы."
-                elif any(word in user_message_lower for word in ['ткань', 'материал', 'хлопок', 'полиэстер']):
-                    bot_response = "🧵 У нас широкий выбор тканей и материалов! Расскажите какой именно материал вас интересует - хлопок, полиэстер, смесовые ткани?"
-                elif any(word in user_message_lower for word in ['китай', 'china', 'производство']):
-                    bot_response = "🏭 Мы работаем с проверенными фабриками в Китае, Индии и Бангладеш. Обеспечиваем полный цикл производства с контролем качества."
-                elif any(word in user_message_lower for word in ['доставка', 'логистика', 'shipping']):
-                    bot_response = "🚢 Организуем доставку морским, авиа и железнодорожным транспортом. Время доставки 15-45 дней в зависимости от способа."
-                elif any(word in user_message_lower for word in ['качество', 'контроль', 'проверка']):
-                    bot_response = "✅ У нас строгий контроль качества на всех этапах. Предоставляем фото отчеты, можем организовать инспекцию третьей стороной."
+                    bot_response = "💰 Цены зависят от объема и типа услуг. Расскажите подробнее о ваших потребностях."
                 else:
-                    bot_response = f"Поняла ваш вопрос! Отличный вопрос о текстильном производстве.\n\nПодготовлю детальный ответ специально для вас. Минуточку!\n\nАнастасия, Textil PRO"
-            else:
-                response = await self.openai_client.chat.completions.create(
-                    model=OPENAI_MODEL,
-                    messages=messages,
-                    max_tokens=1000,
-                    temperature=0.7
-                )
-                bot_response = response.choices[0].message.content
+                    bot_response = f"Поняла ваш вопрос! Подготовлю детальный ответ специально для вас. Минуточку!\n\nКристина, ignatova-stroinost"
             
             # Сохраняем в Zep Memory (с fallback на локальное хранилище)
             await self.add_to_zep_memory(session_id, user_message, bot_response, user_name)
@@ -309,6 +384,8 @@ class TextilProAgent:
             "system_instruction_length": len(self.instruction.get("system_instruction", "")),
             "welcome_message": self.instruction.get("welcome_message", ""),
             "openai_enabled": self.openai_client is not None,
+            "anthropic_enabled": self.anthropic_client is not None,
+            "llm_available": self.openai_client is not None or self.anthropic_client is not None,
             "zep_enabled": self.zep_client is not None
         }
 

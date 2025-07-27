@@ -152,6 +152,7 @@ async def health_check():
             "mode": "WEBHOOK_ONLY",
             "ai_status": "✅ ENABLED" if AI_ENABLED else "❌ DISABLED",
             "openai_configured": bool(os.getenv('OPENAI_API_KEY')),
+            "anthropic_configured": bool(os.getenv('ANTHROPIC_API_KEY')),
             "endpoints": {
                 "webhook_info": "/webhook/info",
                 "set_webhook": "/webhook/set",
