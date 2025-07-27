@@ -309,9 +309,23 @@ async def process_webhook(request: Request):
                         logger.info(f"📋 Данные аудио: {audio_to_process}")
                         
                         # Обрабатываем аудио сообщение через AI агента
-                        voice_result = await agent.process_voice_message(
-                            audio_to_process, str(user_id), str(msg["message_id"]), user_name
-                        )
+                        # ВАЖНО: Передаем правильную структуру данных в зависимости от типа
+                        if is_voice_message:
+                            # Для голосовых сообщений передаем voice_data напрямую
+                            voice_result = await agent.process_voice_message(
+                                voice_data, str(user_id), str(msg["message_id"]), user_name
+                            )
+                        elif audio_data:
+                            # Для аудио сообщений оборачиваем в структуру с ключом 'audio'
+                            wrapped_audio = {'audio': audio_data}
+                            voice_result = await agent.process_voice_message(
+                                wrapped_audio, str(user_id), str(msg["message_id"]), user_name
+                            )
+                        else:
+                            # Для документов передаем как есть
+                            voice_result = await agent.process_voice_message(
+                                document_data, str(user_id), str(msg["message_id"]), user_name
+                            )
                         
                         if voice_result["success"]:
                             transcribed_text = voice_result["transcribed_text"]
@@ -459,15 +473,38 @@ async def process_webhook(request: Request):
                             })
                             await agent.ensure_session_exists(session_id, f"business_{user_id}")
                         
-                        # === ОБРАБОТКА ГОЛОСОВЫХ BUSINESS СООБЩЕНИЙ ===
-                        if is_voice_message:
-                            try:
-                                logger.info(f"🎤 Обрабатываем голосовое business сообщение от {user_name}")
+                        # === ОБРАБОТКА ГОЛОСОВЫХ И АУДИО BUSINESS СООБЩЕНИЙ ===
+                        if (is_voice_message or audio_data or (document_data and document_data.get("mime_type", "").startswith("audio/"))):
+                            # Определяем какие данные использовать для обработки
+                            audio_type = ""
+                            
+                            if is_voice_message:
+                                audio_type = "голосовое business"
+                            elif audio_data:
+                                audio_type = "аудио business"
+                            elif document_data and document_data.get("mime_type", "").startswith("audio/"):
+                                audio_type = "аудио документ business"
                                 
-                                # Обрабатываем голосовое сообщение через AI агента
-                                voice_result = await agent.process_voice_message(
-                                    voice_data, str(user_id), str(bus_msg["message_id"]), user_name
-                                )
+                            try:
+                                logger.info(f"🎤 Обрабатываем {audio_type} сообщение от {user_name}")
+                                
+                                # Обрабатываем аудио сообщение через AI агента с правильной структурой
+                                if is_voice_message:
+                                    # Для голосовых сообщений передаем voice_data напрямую
+                                    voice_result = await agent.process_voice_message(
+                                        voice_data, str(user_id), str(bus_msg["message_id"]), user_name
+                                    )
+                                elif audio_data:
+                                    # Для аудио сообщений оборачиваем в структуру с ключом 'audio'
+                                    wrapped_audio = {'audio': audio_data}
+                                    voice_result = await agent.process_voice_message(
+                                        wrapped_audio, str(user_id), str(bus_msg["message_id"]), user_name
+                                    )
+                                else:
+                                    # Для документов передаем как есть
+                                    voice_result = await agent.process_voice_message(
+                                        document_data, str(user_id), str(bus_msg["message_id"]), user_name
+                                    )
                                 
                                 if voice_result["success"]:
                                     transcribed_text = voice_result["transcribed_text"]
