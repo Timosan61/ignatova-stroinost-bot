@@ -418,7 +418,10 @@ async def process_webhook(request: Request):
                         return {"ok": True, "action": "voice_service_unavailable"}
                 
                 # === ОБРАБОТКА КОМАНД И ТЕКСТА ===
-                elif text.startswith("/start"):
+                # Инициализируем response для предотвращения ошибок
+                response = None
+                
+                if text.startswith("/start"):
                     if AI_ENABLED:
                         response = agent.get_welcome_message()
                     else:
@@ -512,10 +515,14 @@ async def process_webhook(request: Request):
                 else:
                     return {"ok": True, "action": "no_action"}
                     
-                # Отправляем ответ
-                bot.send_message(chat_id, response)
-                logger.info(f"✅ Ответ отправлен в чат {chat_id}")
-                print(f"✅ Отправлен ответ пользователю {user_name}")
+                # Отправляем ответ (с проверкой на None)
+                if response:
+                    bot.send_message(chat_id, response)
+                    logger.info(f"✅ Ответ отправлен в чат {chat_id}")
+                    print(f"✅ Отправлен ответ пользователю {user_name}")
+                else:
+                    logger.warning(f"⚠️ Response не установлен для сообщения: {text[:50]}")
+                    return {"ok": True, "action": "no_response_generated"}
                 
             except Exception as e:
                 logger.error(f"Ошибка обработки сообщения: {e}")
