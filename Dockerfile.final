@@ -1,0 +1,17 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Устанавливаем только необходимые библиотеки
+RUN pip install --no-cache-dir fastapi uvicorn pyTelegramBotAPI
+
+# Копируем ТОЛЬКО webhook.py - больше ничего!
+COPY webhook.py .
+
+# Убеждаемся что никаких других Python файлов нет
+RUN find /app -name "*.py" ! -name "webhook.py" -delete
+
+ENV PYTHONUNBUFFERED=1
+
+# Запускаем webhook.py - Railway подставит PORT автоматически
+CMD ["sh", "-c", "python -m uvicorn webhook:app --host 0.0.0.0 --port ${PORT:-8000} --log-level info"]

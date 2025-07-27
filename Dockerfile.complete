@@ -1,0 +1,36 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Устанавливаем системные зависимости для компиляции некоторых пакетов
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копируем и устанавливаем все зависимости из requirements.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Копируем основной webhook файл
+COPY webhook.py .
+
+# Копируем всю папку bot с AI логикой
+COPY bot/ ./bot/
+
+# Копируем папку data с инструкциями
+COPY data/ ./data/
+
+# Создаем папку для логов
+RUN mkdir -p /app/logs
+
+# Устанавливаем переменные окружения
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+# Открываем порт (Railway сам подставит)
+EXPOSE $PORT
+
+# Запускаем webhook сервер
+CMD ["sh", "-c", "python -m uvicorn webhook:app --host 0.0.0.0 --port ${PORT:-8000} --log-level info"]

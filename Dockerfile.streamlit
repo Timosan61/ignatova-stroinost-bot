@@ -1,0 +1,60 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Установка системных зависимостей
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копируем зависимости
+COPY requirements.txt .
+
+# Устанавливаем Python зависимости
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем код приложения
+COPY . .
+
+# Создаем директории
+RUN mkdir -p data logs
+
+# Создаем wrapper скрипт для радикальной очистки окружения
+RUN echo '#!/bin/bash' > /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Отладочная информация' >> /app/start.sh && \
+    echo 'echo "=== Streamlit Startup Debug ==="' >> /app/start.sh && \
+    echo 'echo "All environment variables:"' >> /app/start.sh && \
+    echo 'env | grep -E "(PORT|STREAMLIT)" || echo "No PORT/STREAMLIT vars found"' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# РАДИКАЛЬНАЯ очистка всех STREAMLIT переменных' >> /app/start.sh && \
+    echo 'for var in $(env | grep "^STREAMLIT" | cut -d= -f1); do' >> /app/start.sh && \
+    echo '  echo "Unsetting: $var"' >> /app/start.sh && \
+    echo '  unset "$var"' >> /app/start.sh && \
+    echo 'done' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Определяем порт из PORT или используем 8501' >> /app/start.sh && \
+    echo 'FINAL_PORT=8501' >> /app/start.sh && \
+    echo 'if [ -n "$PORT" ] && [[ "$PORT" =~ ^[0-9]+$ ]] && [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ]; then' >> /app/start.sh && \
+    echo '  FINAL_PORT=$PORT' >> /app/start.sh && \
+    echo '  echo "Using Railway PORT: $FINAL_PORT"' >> /app/start.sh && \
+    echo 'else' >> /app/start.sh && \
+    echo '  echo "Using default PORT: $FINAL_PORT (Railway PORT was: $PORT)"' >> /app/start.sh && \
+    echo 'fi' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo 'echo "Environment after cleanup:"' >> /app/start.sh && \
+    echo 'env | grep -E "(PORT|STREAMLIT)" || echo "All STREAMLIT vars cleared"' >> /app/start.sh && \
+    echo 'echo "==============================="' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Запускаем в полностью очищенном окружении' >> /app/start.sh && \
+    echo 'exec env -i PATH="$PATH" PYTHONPATH="/app" streamlit run admin/streamlit_admin.py --server.port=$FINAL_PORT --server.address=0.0.0.0 --server.headless=true --browser.gatherUsageStats=false' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
+# Переменные окружения (будут очищены в start.sh)
+# ENV убраны чтобы избежать конфликтов с Railway
+
+# Экспозируем порт
+EXPOSE 8501
+
+# Команда запуска через Python wrapper (более надежно чем bash)
+CMD ["python3", "/app/start_streamlit.py"]
