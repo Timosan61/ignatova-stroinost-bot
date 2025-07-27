@@ -173,7 +173,7 @@ async def set_webhook_get():
 async def set_webhook():
     """Установка webhook"""
     try:
-        webhook_url = "https://ignatova-stroinost-bot-production.up.railway.app/webhook"
+        webhook_url = "https://ignatova-stroinost-bot.railway.app/webhook"
         
         result = bot.set_webhook(
             url=webhook_url,
@@ -446,7 +446,7 @@ async def startup():
         print("🔧 Автоматическая установка webhook...")
         try:
             # Используем правильный URL вместо переменной окружения
-            webhook_url = "https://ignatova-stroinost-bot-production.up.railway.app/webhook"
+            webhook_url = "https://ignatova-stroinost-bot.railway.app/webhook"
             result = bot.set_webhook(
                 url=webhook_url,
                 secret_token=WEBHOOK_SECRET_TOKEN,
