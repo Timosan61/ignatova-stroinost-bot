@@ -76,8 +76,13 @@ class TelegramAudioDownloader:
         Возвращает путь к скачанному файлу или None при ошибке
         """
         try:
-            # Проверяем размер файла
+            # Проверяем размер файла из разных возможных источников
             file_size = voice_data.get('file_size', 0)
+            if not file_size and voice_data.get('audio'):
+                file_size = voice_data.get('audio', {}).get('file_size', 0)
+            
+            logger.info(f"📊 Размер файла: {file_size} bytes")
+            
             if file_size > MAX_AUDIO_SIZE_BYTES:
                 logger.error(f"❌ Файл слишком большой: {file_size} bytes (макс. {MAX_AUDIO_SIZE_BYTES})")
                 return None

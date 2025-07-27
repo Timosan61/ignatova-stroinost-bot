@@ -53,10 +53,16 @@ class VoiceService:
             Dict с результатом обработки
         """
         start_time = datetime.now()
+        
+        # Получаем file_id в зависимости от типа аудио данных
         file_id = voice_data.get('file_id')
+        if not file_id:
+            # Проверяем альтернативные поля для разных типов аудио
+            file_id = voice_data.get('file_id') or voice_data.get('audio', {}).get('file_id')
         
         logger.info(f"🎤 Обработка голосового сообщения от user_{user_id}, message_{message_id}")
         logger.debug(f"📋 Voice data: {voice_data}")
+        logger.info(f"🔑 Извлеченный file_id: {file_id}")
         
         # Проверяем что у нас есть все необходимое
         if not self.whisper_client:
@@ -79,6 +85,11 @@ class VoiceService:
         
         # Проверяем длительность аудио
         duration = voice_data.get('duration', 0)
+        if not duration and voice_data.get('audio'):
+            duration = voice_data.get('audio', {}).get('duration', 0)
+            
+        logger.info(f"🕐 Длительность аудио: {duration}с")
+        
         if duration > MAX_AUDIO_DURATION_SECONDS:
             return {
                 "success": False,
