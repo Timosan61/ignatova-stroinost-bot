@@ -416,6 +416,56 @@ async def process_webhook(request: Request):
         logger.error(f"❌ Ошибка webhook: {e}")
         return {"ok": False, "error": str(e)}
 
+@app.get("/debug/prompt")
+async def get_current_prompt():
+    """Получить информацию о текущих инструкциях"""
+    try:
+        if AI_ENABLED and agent:
+            instruction = agent.instruction
+            return {
+                "status": "success",
+                "last_updated": instruction.get("last_updated", "неизвестно"),
+                "system_instruction_length": len(instruction.get("system_instruction", "")),
+                "welcome_message": instruction.get("welcome_message", ""),
+                "ai_enabled": True
+            }
+        else:
+            return {
+                "status": "error",
+                "error": "AI Agent не инициализирован",
+                "ai_enabled": False
+            }
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения промпта: {e}")
+        return {"status": "error", "error": str(e)}
+
+@app.post("/admin/reload-prompt")
+async def reload_prompt():
+    """Перезагрузить инструкции из файла"""
+    try:
+        if AI_ENABLED and agent:
+            old_updated = agent.instruction.get('last_updated', 'неизвестно')
+            agent.reload_instruction()
+            new_updated = agent.instruction.get('last_updated', 'неизвестно')
+            
+            changed = old_updated != new_updated
+            
+            return {
+                "status": "success",
+                "changed": changed,
+                "old_updated": old_updated,
+                "new_updated": new_updated,
+                "message": "Инструкции обновлены" if changed else "Инструкции перезагружены (без изменений)"
+            }
+        else:
+            return {
+                "status": "error",
+                "error": "AI Agent не инициализирован"
+            }
+    except Exception as e:
+        logger.error(f"❌ Ошибка перезагрузки промпта: {e}")
+        return {"status": "error", "error": str(e)}
+
 @app.on_event("startup")
 async def startup():
     """Запуск сервера"""

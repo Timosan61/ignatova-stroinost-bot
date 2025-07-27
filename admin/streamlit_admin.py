@@ -43,7 +43,7 @@ def main():
         return
     
     # Заголовок  
-    st.title("🤖 Artyom Integrator - Админ панель")
+    st.title("🤖 ignatova-stroinost-bot - Админ панель")
     
     # Показываем статус деплоя в боковой панели
     deploy_manager = show_deploy_status()
@@ -76,7 +76,7 @@ def main():
         if st.button("🔍 Проверить текущий промпт", use_container_width=True):
             try:
                 import requests
-                response = requests.get("https://artyom-integrator-production.up.railway.app/debug/prompt", timeout=10)
+                response = requests.get("https://ignatova-stroinost-bot-production.up.railway.app/debug/prompt", timeout=10)
                 if response.status_code == 200:
                     data = response.json()
                     if "error" not in data:
@@ -93,7 +93,7 @@ def main():
         if st.button("🔄 Перезагрузить промпт", use_container_width=True):
             try:
                 import requests
-                response = requests.post("https://artyom-integrator-production.up.railway.app/admin/reload-prompt", timeout=10)
+                response = requests.post("https://ignatova-stroinost-bot-production.up.railway.app/admin/reload-prompt", timeout=10)
                 if response.status_code == 200:
                     data = response.json()
                     if data.get("changed"):

@@ -12,7 +12,7 @@ INSTRUCTION_FILE = os.path.join(BASE_DIR, 'data', 'instruction.json')
 
 # Настройки для Streamlit
 STREAMLIT_CONFIG = {
-    'page_title': 'Textil PRO Bot Admin',
+    'page_title': 'ignatova-stroinost-bot Bot Admin',
     'page_icon': '🤖',
     'layout': 'wide'
 }

@@ -14,7 +14,7 @@ class DeployManager:
         # GitHub API настройки
         self.github_token = st.secrets.get("GITHUB_TOKEN", os.getenv("GITHUB_TOKEN"))
         self.github_owner = st.secrets.get("GITHUB_OWNER", "Timosan61")
-        self.github_repo = st.secrets.get("GITHUB_REPO", "Textill_PRO_BOT")
+        self.github_repo = st.secrets.get("GITHUB_REPO", "ignatova-stroinost-bot")
         self.github_api_base = "https://api.github.com"
         
         # Railway настройки
@@ -205,12 +205,12 @@ def show_deploy_status():
     st.sidebar.markdown("### 🤖 Статус бота")
     try:
         import requests
-        response = requests.get("https://artyom-integrator-production.up.railway.app/", timeout=5)
+        response = requests.get("https://ignatova-stroinost-bot-production.up.railway.app/", timeout=5)
         if response.status_code == 200:
             st.sidebar.success("✅ Бот онлайн")
             
             # Проверяем промпт
-            prompt_response = requests.get("https://artyom-integrator-production.up.railway.app/debug/prompt", timeout=5)
+            prompt_response = requests.get("https://ignatova-stroinost-bot-production.up.railway.app/debug/prompt", timeout=5)
             if prompt_response.status_code == 200:
                 prompt_data = prompt_response.json()
                 st.sidebar.info(f"""

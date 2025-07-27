@@ -301,6 +301,16 @@ class TextilProAgent:
     
     def get_welcome_message(self) -> str:
         return self.instruction.get("welcome_message", "Добро пожаловать!")
+    
+    def get_instruction_info(self) -> dict:
+        """Получает информацию о текущих инструкциях для админ-панели"""
+        return {
+            "last_updated": self.instruction.get("last_updated", "неизвестно"),
+            "system_instruction_length": len(self.instruction.get("system_instruction", "")),
+            "welcome_message": self.instruction.get("welcome_message", ""),
+            "openai_enabled": self.openai_client is not None,
+            "zep_enabled": self.zep_client is not None
+        }
 
 
 agent = TextilProAgent()
