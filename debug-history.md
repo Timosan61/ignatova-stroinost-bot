@@ -5033,3 +5033,84 @@ UU data/instruction.json
 
 ---
 
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 11:11:50
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+M  bot/agent.py
+M  bot/config.py
+A  bot/voice/__init__.py
+A  bot/voice/config.py
+A  bot/voice/telegram_audio.py
+A  bot/voice/voice_service.py
+A  bot/voice/whisper_client.py
+M  debug-history.md
+M  webhook.py
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 11:12:25
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+M  bot/agent.py
+M  bot/config.py
+A  bot/voice/__init__.py
+A  bot/voice/config.py
+A  bot/voice/telegram_audio.py
+A  bot/voice/voice_service.py
+A  bot/voice/whisper_client.py
+MM debug-history.md
+M  webhook.py
+```
+
+### Recent Events:
+- Отлично! Теперь запущу быструю проверку webhook сервера:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 11:14:14
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 11:14:30
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
