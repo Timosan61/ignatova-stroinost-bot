@@ -334,41 +334,26 @@ async def process_webhook(request: Request):
             logger.info(f"📨 Сообщение от {user_id}: типы={message_types}, voice={bool(msg.get('voice'))}, audio={bool(msg.get('audio'))}")
             user_name = msg.get("from", {}).get("first_name", "Пользователь")
             
-            # Проверяем наличие голосового сообщения
+            # Проверяем наличие голосового сообщения и аудио
             voice_data = msg.get("voice")
-            is_voice_message = bool(voice_data)
-            
-            # Отладочное логирование
-            logger.info(f"📨 Все данные сообщения: {msg}")
-            
-            if is_voice_message:
-                logger.info(f"🎤 Получены данные голосового сообщения: {voice_data}")
-            
-            # Проверим также аудио сообщения
             audio_data = msg.get("audio")
             document_data = msg.get("document")
-            if audio_data:
-                logger.info(f"🎵 Получено аудио сообщение: {audio_data}")
-            if document_data and document_data.get("mime_type", "").startswith("audio/"):
-                logger.info(f"📎 Получен аудио документ: {document_data}")
+            is_voice_message = bool(voice_data)
             
-            # Проверим все поля сообщения, которые могут содержать аудио
-            possible_audio_fields = ['voice', 'audio', 'document', 'video_note']
-            found_audio = []
-            for field in possible_audio_fields:
-                if msg.get(field):
-                    found_audio.append(f"{field}: {msg.get(field)}")
-            
-            if found_audio:
-                logger.info(f"🔍 Найденные аудио/медиа поля: {found_audio}")
+            # Базовое логирование без избыточных деталей
+            if is_voice_message:
+                logger.info(f"🎤 Получено голосовое сообщение от {user_name}")
+            elif msg.get("audio"):
+                logger.info(f"🎵 Получено аудио сообщение от {user_name}")
+            elif text:
+                logger.info(f"💬 Получено текстовое сообщение от {user_name}: {text[:50]}...")
             
             try:
-                # Пытаемся отправить индикатор набора текста
+                # Пытаемся отправить индикатор набора текста (с защитой от rate limit)
                 try:
-                    if is_voice_message:
-                        bot.send_chat_action(chat_id, 'typing')  # Для голосовых - typing пока обрабатываем
-                    else:
-                        bot.send_chat_action(chat_id, 'typing')
+                    import time
+                    time.sleep(0.1)  # Небольшая задержка для избежания rate limit
+                    bot.send_chat_action(chat_id, 'typing')
                 except Exception as typing_error:
                     logger.warning(f"⚠️ Не удалось отправить typing индикатор: {typing_error}")
                 
@@ -410,9 +395,14 @@ async def process_webhook(request: Request):
                                 error_msg = transcription_result.get('error', 'Ошибка транскрипции')
                                 logger.error(f"❌ Ошибка транскрипции: {error_msg}")
                                 response = "Извините, не удалось обработать ваше голосовое сообщение. Попробуйте отправить текстом или записать еще раз."
-                                # Отправляем ошибку и завершаем обработку
-                                bot.send_message(chat_id, response)
-                                logger.info(f"✅ Сообщение об ошибке голоса отправлено в чат {chat_id}")
+                                # Отправляем ошибку и завершаем обработку (с защитой от rate limit)
+                                try:
+                                    import time
+                                    time.sleep(0.2)  # Задержка перед отправкой
+                                    bot.send_message(chat_id, response)
+                                    logger.info(f"✅ Сообщение об ошибке голоса отправлено в чат {chat_id}")
+                                except Exception as send_error:
+                                    logger.error(f"❌ Ошибка отправки ответа: {send_error}")
                                 return {"ok": True, "action": "voice_transcription_failed"}
                                 
                         except Exception as voice_error:

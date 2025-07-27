@@ -7475,3 +7475,235 @@ Working tree clean
 
 ---
 
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:19:42
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+Working tree clean
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:19:54
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:20:16
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:20:22
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:20:28
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+- Теперь проверим OpenAI API в production:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:25:03
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:25:10
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+- Проблема подтверждена! OpenAI API ключ недействителен. Возможные причины:
+- 1. **Ключ устарел или был отозван**
+- 2. **Клю
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:25:19
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:25:29
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:25:42
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:25:53
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+ M webhook.py
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:26:02
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+ M webhook.py
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:26:10
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+ M webhook.py
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `fa0d9ca5-91f2-4bd0-862d-e1b412850867`
+- **Timestamp:** 2025-07-27 12:26:19
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/fa0d9ca5-91f2-4bd0-862d-e1b412850867.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+ M webhook.py
+```
+
+### Recent Events:
+
+---
+
