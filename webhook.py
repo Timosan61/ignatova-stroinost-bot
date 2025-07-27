@@ -153,6 +153,7 @@ async def health_check():
             "ai_status": "✅ ENABLED" if AI_ENABLED else "❌ DISABLED",
             "openai_configured": bool(os.getenv('OPENAI_API_KEY')),
             "anthropic_configured": bool(os.getenv('ANTHROPIC_API_KEY')),
+            "voice_status": "✅ ENABLED" if (AI_ENABLED and getattr(agent, 'voice_service', None)) else "❌ DISABLED",
             "endpoints": {
                 "webhook_info": "/webhook/info",
                 "set_webhook": "/webhook/set",
@@ -262,26 +263,66 @@ async def process_webhook(request: Request):
             user_id = msg.get("from", {}).get("id", "unknown")
             user_name = msg.get("from", {}).get("first_name", "Пользователь")
             
+            # Проверяем наличие голосового сообщения
+            voice_data = msg.get("voice")
+            is_voice_message = bool(voice_data)
+            
             try:
                 # Пытаемся отправить индикатор набора текста
                 try:
-                    bot.send_chat_action(chat_id, 'typing')
+                    if is_voice_message:
+                        bot.send_chat_action(chat_id, 'typing')  # Для голосовых - typing пока обрабатываем
+                    else:
+                        bot.send_chat_action(chat_id, 'typing')
                 except Exception as typing_error:
                     logger.warning(f"⚠️ Не удалось отправить typing индикатор: {typing_error}")
                 
-                # Обрабатываем команды
-                if text.startswith("/start"):
+                # === ОБРАБОТКА ГОЛОСОВЫХ СООБЩЕНИЙ ===
+                if is_voice_message and AI_ENABLED:
+                    try:
+                        logger.info(f"🎤 Получено голосовое сообщение от {user_name}")
+                        
+                        # Обрабатываем голосовое сообщение через AI агента
+                        voice_result = await agent.process_voice_message(
+                            voice_data, str(user_id), str(msg["message_id"]), user_name
+                        )
+                        
+                        if voice_result["success"]:
+                            transcribed_text = voice_result["transcribed_text"]
+                            ai_response = voice_result["ai_response"]
+                            processing_time = voice_result.get("processing_time", 0)
+                            
+                            # Отправляем результат пользователю
+                            response = f"🎤 Ваше голосовое сообщение:\n\"{transcribed_text}\"\n\n{ai_response}"
+                            
+                            logger.info(f"✅ Голосовое сообщение обработано за {processing_time:.1f}с")
+                        else:
+                            # Ошибка обработки голосового сообщения
+                            error_msg = voice_result["error"]
+                            logger.error(f"❌ Ошибка обработки голосового сообщения: {error_msg}")
+                            response = "Извините, не удалось обработать ваше голосовое сообщение. Попробуйте отправить текстом или записать еще раз."
+                            
+                    except Exception as voice_error:
+                        logger.error(f"❌ Неожиданная ошибка при обработке голосового сообщения: {voice_error}")
+                        response = "Извините, произошла ошибка при обработке голосового сообщения. Попробуйте написать текстом."
+                
+                # === ОБРАБОТКА КОМАНД И ТЕКСТА ===
+                elif text.startswith("/start"):
                     if AI_ENABLED:
                         response = agent.get_welcome_message()
                     else:
                         response = f"👋 Привет, {user_name}! Добро пожаловать в ignatova-stroinost-bot бот!"
                 
                 elif text.startswith("/help"):
-                    response = """ℹ️ Помощь:
+                    voice_status = "✅ Поддерживаются" if (AI_ENABLED and agent.voice_service) else "❌ Не поддерживаются"
+                    response = f"""ℹ️ Помощь по ignatova-stroinost-bot:
 /start - начать работу
 /help - показать помощь
 
-Просто напишите ваш вопрос, и я помогу!"""
+📝 Текстовые сообщения: ✅ Поддерживаются
+🎤 Голосовые сообщения: {voice_status}
+
+Просто напишите ваш вопрос или отправьте голосовое сообщение!"""
                 
                 # Если есть текст - обрабатываем через AI
                 elif text and AI_ENABLED:
@@ -325,6 +366,10 @@ async def process_webhook(request: Request):
             business_connection_id = bus_msg.get("business_connection_id")
             user_name = bus_msg.get("from", {}).get("first_name", "Клиент")
             
+            # Проверяем наличие голосового сообщения в Business API
+            voice_data = bus_msg.get("voice")
+            is_voice_message = bool(voice_data)
+            
             # 🚫 КРИТИЧНАЯ ПРОВЕРКА: Игнорируем сообщения от владельца аккаунта
             if business_connection_id and business_connection_id in business_owners:
                 owner_id = business_owners[business_connection_id]
@@ -332,14 +377,15 @@ async def process_webhook(request: Request):
                     logger.info(f"🚫 ИГНОРИРУЕМ сообщение от владельца аккаунта: {user_name} (ID: {user_id})")
                     return {"ok": True, "action": "ignored_owner_message", "reason": "message_from_business_owner"}
             
-            # Обрабатываем business сообщения с текстом
-            if text:
+            # Обрабатываем business сообщения (голосовые и текстовые)
+            if text or is_voice_message:
                 try:
-                    logger.info(f"🔄 Начинаю обработку business message: text='{text}', chat_id={chat_id}")
+                    logger.info(f"🔄 Начинаю обработку business message: {'voice' if is_voice_message else 'text'}, chat_id={chat_id}")
                     
                     if AI_ENABLED:
                         logger.info(f"🤖 AI включен, генерирую ответ...")
                         session_id = f"business_{user_id}"
+                        
                         # Создаем пользователя в Zep если нужно
                         if agent.zep_client:
                             await agent.ensure_user_exists(f"business_{user_id}", {
@@ -347,11 +393,46 @@ async def process_webhook(request: Request):
                                 'email': f'{user_id}@business.telegram.user'
                             })
                             await agent.ensure_session_exists(session_id, f"business_{user_id}")
-                        response = await agent.generate_response(text, session_id, user_name)
-                        logger.info(f"✅ AI ответ сгенерирован: {response[:100]}...")
+                        
+                        # === ОБРАБОТКА ГОЛОСОВЫХ BUSINESS СООБЩЕНИЙ ===
+                        if is_voice_message:
+                            try:
+                                logger.info(f"🎤 Обрабатываем голосовое business сообщение от {user_name}")
+                                
+                                # Обрабатываем голосовое сообщение через AI агента
+                                voice_result = await agent.process_voice_message(
+                                    voice_data, str(user_id), str(bus_msg["message_id"]), user_name
+                                )
+                                
+                                if voice_result["success"]:
+                                    transcribed_text = voice_result["transcribed_text"]
+                                    ai_response = voice_result["ai_response"]
+                                    processing_time = voice_result.get("processing_time", 0)
+                                    
+                                    # Отправляем результат клиенту
+                                    response = f"🎤 Ваше сообщение:\n\"{transcribed_text}\"\n\n{ai_response}"
+                                    
+                                    logger.info(f"✅ Business голосовое сообщение обработано за {processing_time:.1f}с")
+                                else:
+                                    # Ошибка обработки голосового сообщения
+                                    error_msg = voice_result["error"]
+                                    logger.error(f"❌ Ошибка обработки business голосового сообщения: {error_msg}")
+                                    response = "Извините, не удалось обработать ваше голосовое сообщение. Попробуйте отправить текстом."
+                                    
+                            except Exception as voice_error:
+                                logger.error(f"❌ Ошибка при обработке business голосового сообщения: {voice_error}")
+                                response = "Извините, произошла ошибка при обработке голосового сообщения. Попробуйте написать текстом."
+                        
+                        # === ОБРАБОТКА ТЕКСТОВЫХ BUSINESS СООБЩЕНИЙ ===
+                        else:
+                            response = await agent.generate_response(text, session_id, user_name)
+                            logger.info(f"✅ AI ответ сгенерирован: {response[:100]}...")
                     else:
                         logger.info(f"🤖 AI отключен, использую стандартный ответ")
-                        response = f"👋 Здравствуйте, {user_name}! Получил ваш вопрос. Подготовлю ответ!"
+                        if is_voice_message:
+                            response = f"👋 Здравствуйте, {user_name}! Получил ваше голосовое сообщение, но обработка голоса временно недоступна. Попробуйте написать текстом."
+                        else:
+                            response = f"👋 Здравствуйте, {user_name}! Получил ваш вопрос. Подготовлю ответ!"
                     
                     # Для business_message используем специальную функцию
                     logger.info(f"📤 Пытаюсь отправить ответ клиенту {user_name}...")

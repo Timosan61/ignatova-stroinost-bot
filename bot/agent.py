@@ -9,7 +9,10 @@ import anthropic
 from zep_cloud.client import AsyncZep
 from zep_cloud.types import Message
 
-from .config import INSTRUCTION_FILE, OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENAI_MODEL, ANTHROPIC_MODEL, ZEP_API_KEY
+from .config import (
+    INSTRUCTION_FILE, OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENAI_MODEL, 
+    ANTHROPIC_MODEL, ZEP_API_KEY, VOICE_ENABLED, TELEGRAM_BOT_TOKEN
+)
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -17,6 +20,21 @@ logger = logging.getLogger(__name__)
 
 class TextilProAgent:
     def __init__(self):
+        # Инициализируем голосовой сервис если доступен
+        self.voice_service = None
+        if VOICE_ENABLED and TELEGRAM_BOT_TOKEN:
+            try:
+                from .voice import VoiceService
+                self.voice_service = VoiceService(TELEGRAM_BOT_TOKEN, OPENAI_API_KEY)
+                print("✅ Голосовой сервис инициализирован")
+            except Exception as e:
+                print(f"❌ Ошибка инициализации голосового сервиса: {e}")
+                self.voice_service = None
+        else:
+            if not VOICE_ENABLED:
+                print("⚠️ Голосовой сервис отключен (OPENAI_API_KEY не найден)")
+            if not TELEGRAM_BOT_TOKEN:
+                print("⚠️ Голосовой сервис отключен (TELEGRAM_BOT_TOKEN не найден)")
         # Инициализируем OpenAI клиент если API ключ доступен
         if OPENAI_API_KEY:
             try:
@@ -377,6 +395,91 @@ class TextilProAgent:
     def get_welcome_message(self) -> str:
         return self.instruction.get("welcome_message", "Добро пожаловать!")
     
+    async def process_voice_message(
+        self, 
+        voice_data: Dict[str, Any], 
+        user_id: str, 
+        message_id: str,
+        user_name: str = None
+    ) -> Dict[str, Any]:
+        """
+        Обрабатывает голосовое сообщение: транскрибирует и генерирует ответ
+        
+        Args:
+            voice_data: Данные голосового сообщения от Telegram
+            user_id: ID пользователя  
+            message_id: ID сообщения
+            user_name: Имя пользователя
+            
+        Returns:
+            Dict с результатом обработки
+        """
+        if not self.voice_service:
+            return {
+                "success": False,
+                "error": "Голосовые сообщения не поддерживаются",
+                "transcribed_text": None,
+                "ai_response": None
+            }
+        
+        try:
+            # Этап 1: Транскрибируем голосовое сообщение
+            logger.info(f"🎤 Начинаем обработку голосового сообщения от {user_name or user_id}")
+            
+            voice_result = await self.voice_service.process_voice_message(
+                voice_data, user_id, message_id, language="ru"
+            )
+            
+            if not voice_result["success"]:
+                logger.error(f"❌ Ошибка транскрипции: {voice_result['error']}")
+                return {
+                    "success": False,
+                    "error": f"Ошибка обработки голосового сообщения: {voice_result['error']}",
+                    "transcribed_text": None,
+                    "ai_response": None
+                }
+            
+            transcribed_text = voice_result["text"]
+            logger.info(f"✅ Транскрипция завершена: {transcribed_text[:50]}...")
+            
+            # Этап 2: Генерируем ответ через AI агента
+            session_id = f"user_{user_id}"
+            
+            # Создаем пользователя в Zep если нужно
+            if self.zep_client:
+                await self.ensure_user_exists(f"user_{user_id}", {
+                    'first_name': user_name or f"User_{user_id}",
+                    'email': f'{user_id}@telegram.user'
+                })
+                await self.ensure_session_exists(session_id, f"user_{user_id}")
+            
+            # Генерируем ответ на транскрибированный текст
+            ai_response = await self.generate_response(
+                f"[Голосовое сообщение]: {transcribed_text}", 
+                session_id, 
+                user_name
+            )
+            
+            logger.info(f"✅ AI ответ сгенерирован: {ai_response[:50]}...")
+            
+            return {
+                "success": True,
+                "transcribed_text": transcribed_text,
+                "ai_response": ai_response,
+                "processing_time": voice_result.get("processing_time", 0),
+                "duration": voice_result.get("duration", 0),
+                "char_count": voice_result.get("char_count", 0)
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки голосового сообщения: {e}")
+            return {
+                "success": False,
+                "error": f"Неожиданная ошибка: {str(e)}",
+                "transcribed_text": None,
+                "ai_response": None
+            }
+
     def get_instruction_info(self) -> dict:
         """Получает информацию о текущих инструкциях для админ-панели"""
         return {
@@ -386,7 +489,8 @@ class TextilProAgent:
             "openai_enabled": self.openai_client is not None,
             "anthropic_enabled": self.anthropic_client is not None,
             "llm_available": self.openai_client is not None or self.anthropic_client is not None,
-            "zep_enabled": self.zep_client is not None
+            "zep_enabled": self.zep_client is not None,
+            "voice_enabled": self.voice_service is not None
         }
 
 

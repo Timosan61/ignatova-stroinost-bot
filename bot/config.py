@@ -15,12 +15,24 @@ INSTRUCTION_FILE = os.path.join(BASE_DIR, 'data', 'instruction.json')
 OPENAI_MODEL = 'gpt-4o'
 ANTHROPIC_MODEL = 'claude-3-5-sonnet-20241022'
 
+# Настройки голосовых сообщений
+VOICE_ENABLED = bool(OPENAI_API_KEY)  # Голосовые сообщения включены если есть OpenAI ключ
+VOICE_LANGUAGE = 'ru'  # Язык по умолчанию для транскрипции
+VOICE_MAX_DURATION = 600  # 10 минут максимальная длительность
+VOICE_MAX_SIZE_MB = 25  # 25MB максимальный размер файла
+
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не найден в переменных окружения")
 # Проверки API ключей (не критичные для запуска)
 if not OPENAI_API_KEY:
-    print("⚠️ OPENAI_API_KEY не найден в переменных окружения")
+    print("⚠️ OPENAI_API_KEY не найден в переменных окружения - голосовые сообщения будут отключены")
 if not ANTHROPIC_API_KEY:
     print("⚠️ ANTHROPIC_API_KEY не найден в переменных окружения")
 if not ZEP_API_KEY:
     print("⚠️ ZEP_API_KEY не найден в переменных окружения")
+
+# Информация о статусе голосовых сообщений
+if VOICE_ENABLED:
+    print("✅ Голосовые сообщения включены (OpenAI API доступен)")
+else:
+    print("❌ Голосовые сообщения отключены (OpenAI API недоступен)")
