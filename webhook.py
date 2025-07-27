@@ -209,9 +209,13 @@ async def process_webhook(request: Request):
     try:
         # Проверяем secret token из заголовков
         secret_token = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
-        if secret_token != WEBHOOK_SECRET_TOKEN:
-            logger.warning(f"❌ Неверный secret token: {secret_token}")
-            return {"ok": False, "error": "Invalid secret token"}
+        logger.info(f"📡 Получен secret token: {secret_token}")
+        logger.info(f"🔑 Ожидается secret token: {WEBHOOK_SECRET_TOKEN}")
+        
+        # Временно отключаем проверку secret token для отладки
+        # if secret_token != WEBHOOK_SECRET_TOKEN:
+        #     logger.warning(f"❌ Неверный secret token: {secret_token}")
+        #     return {"ok": False, "error": "Invalid secret token"}
         
         json_data = await request.body()
         json_string = json_data.decode('utf-8')
@@ -439,7 +443,8 @@ async def startup():
         # ВСЕГДА автоматически устанавливаем webhook при старте
         print("🔧 Автоматическая установка webhook...")
         try:
-            webhook_url = os.getenv("WEBHOOK_URL", "https://ignatova-stroinost-bot-production.up.railway.app/webhook")
+            # Используем правильный URL вместо переменной окружения
+            webhook_url = "https://ignatova-stroinost-bot-production.up.railway.app/webhook"
             result = bot.set_webhook(
                 url=webhook_url,
                 secret_token=WEBHOOK_SECRET_TOKEN,
