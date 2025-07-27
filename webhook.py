@@ -212,10 +212,12 @@ async def process_webhook(request: Request):
         logger.info(f"📡 Получен secret token: {secret_token}")
         logger.info(f"🔑 Ожидается secret token: {WEBHOOK_SECRET_TOKEN}")
         
-        # Временно отключаем проверку secret token для отладки
-        # if secret_token != WEBHOOK_SECRET_TOKEN:
-        #     logger.warning(f"❌ Неверный secret token: {secret_token}")
-        #     return {"ok": False, "error": "Invalid secret token"}
+        # Проверяем secret token, но не блокируем запросы для отладки
+        if secret_token != WEBHOOK_SECRET_TOKEN:
+            logger.warning(f"⚠️ Secret token не совпадает: получен='{secret_token}', ожидается='{WEBHOOK_SECRET_TOKEN}'")
+            logger.warning("⚠️ ПРОДОЛЖАЕМ обработку для отладки...")
+        else:
+            logger.info("✅ Secret token корректен")
         
         json_data = await request.body()
         json_string = json_data.decode('utf-8')
