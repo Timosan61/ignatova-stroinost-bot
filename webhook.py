@@ -98,6 +98,51 @@ logger.info(f"📁 Logs directory: {os.path.abspath('logs')}")
 logger.info(f"🤖 Bot token: {TELEGRAM_BOT_TOKEN[:20]}...")
 logger.info(f"🔄 AI Agent enabled: {AI_ENABLED}")
 
+# === ИНИЦИАЛИЗАЦИЯ ГОЛОСОВОГО СЕРВИСА ===
+voice_service = None
+try:
+    from bot.voice.voice_service import VoiceService
+    from bot.config import OPENAI_API_KEY
+    
+    if TELEGRAM_BOT_TOKEN and OPENAI_API_KEY:
+        voice_service = VoiceService(
+            telegram_bot_token=TELEGRAM_BOT_TOKEN,
+            openai_api_key=OPENAI_API_KEY
+        )
+        logger.info("✅ Voice service инициализирован в webhook")
+    else:
+        logger.warning("⚠️ Voice service не доступен: отсутствуют токены")
+except ImportError as e:
+    voice_service = None
+    logger.warning(f"⚠️ Voice service не доступен: {e}")
+except Exception as e:
+    voice_service = None
+    logger.error(f"❌ Ошибка инициализации Voice service: {e}")
+
+# === ФУНКЦИЯ ДЛЯ ГОЛОСОВОЙ ОБРАБОТКИ ===
+async def process_voice_transcription(voice_data: dict, user_id: int) -> dict:
+    """Транскрибирует голосовое сообщение (по образцу artem.integrator)"""
+    try:
+        if not voice_service:
+            return {"success": False, "error": "Voice service not available"}
+        
+        file_id = voice_data.get('file_id')
+        if not file_id:
+            return {"success": False, "error": "No file_id in voice data"}
+        
+        # Используем простой метод транскрибации
+        result = await voice_service.transcribe_voice_message(
+            voice_data, 
+            str(user_id), 
+            str(voice_data.get('file_id', 'unknown'))
+        )
+        
+        return result or {"success": False, "error": "Voice processing failed"}
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка транскрипции голоса: {e}")
+        return {"success": False, "error": f"Ошибка транскрипции: {str(e)}"}
+
 # === ФУНКЦИЯ ДЛЯ BUSINESS API ===
 def send_business_message(chat_id, text, business_connection_id):
     """
@@ -153,7 +198,7 @@ async def health_check():
             "ai_status": "✅ ENABLED" if AI_ENABLED else "❌ DISABLED",
             "openai_configured": bool(os.getenv('OPENAI_API_KEY')),
             "anthropic_configured": bool(os.getenv('ANTHROPIC_API_KEY')),
-            "voice_status": "✅ ENABLED" if (AI_ENABLED and getattr(agent, 'voice_service', None)) else "❌ DISABLED",
+            "voice_status": "✅ ENABLED" if voice_service else "❌ DISABLED",
             "endpoints": {
                 "webhook_info": "/webhook/info",
                 "set_webhook": "/webhook/set",
@@ -302,8 +347,9 @@ async def process_webhook(request: Request):
                     logger.warning(f"⚠️ Не удалось отправить typing индикатор: {typing_error}")
                 
                 # === ОБРАБОТКА ГОЛОСОВЫХ И АУДИО СООБЩЕНИЙ ===
-                if (is_voice_message or audio_data or (document_data and document_data.get("mime_type", "").startswith("audio/"))) and AI_ENABLED:
-                    # Определяем какие данные использовать для обработки
+                # По образцу artem.integrator: транскрибируем → устанавливаем text → обрабатываем как текст
+                if (is_voice_message or audio_data or (document_data and document_data.get("mime_type", "").startswith("audio/"))):
+                    # Определяем какие данные использовать для транскрибации
                     audio_to_process = None
                     audio_type = ""
                     
@@ -311,52 +357,49 @@ async def process_webhook(request: Request):
                         audio_to_process = voice_data
                         audio_type = "голосовое"
                     elif audio_data:
-                        audio_to_process = audio_data
+                        audio_to_process = audio_data  
                         audio_type = "аудио"
                     elif document_data and document_data.get("mime_type", "").startswith("audio/"):
                         audio_to_process = document_data
                         audio_type = "аудио документ"
-                    try:
-                        logger.info(f"🎤 Получено {audio_type} сообщение от {user_name}")
-                        logger.info(f"📋 Данные аудио: {audio_to_process}")
-                        
-                        # Обрабатываем аудио сообщение через AI агента
-                        # ВАЖНО: Передаем правильную структуру данных в зависимости от типа
-                        if is_voice_message:
-                            # Для голосовых сообщений передаем voice_data напрямую
-                            voice_result = await agent.process_voice_message(
-                                voice_data, str(user_id), str(msg["message_id"]), user_name
-                            )
-                        elif audio_data:
-                            # Для аудио сообщений оборачиваем в структуру с ключом 'audio'
-                            wrapped_audio = {'audio': audio_data}
-                            voice_result = await agent.process_voice_message(
-                                wrapped_audio, str(user_id), str(msg["message_id"]), user_name
-                            )
-                        else:
-                            # Для документов передаем как есть
-                            voice_result = await agent.process_voice_message(
-                                document_data, str(user_id), str(msg["message_id"]), user_name
-                            )
-                        
-                        if voice_result["success"]:
-                            transcribed_text = voice_result["transcribed_text"]
-                            ai_response = voice_result["ai_response"]
-                            processing_time = voice_result.get("processing_time", 0)
+                    
+                    if audio_to_process and voice_service:
+                        try:
+                            logger.info(f"🎤 Транскрибируем {audio_type} сообщение от {user_name}")
                             
-                            # Отправляем результат пользователю
-                            response = f"🎤 Ваше голосовое сообщение:\n\"{transcribed_text}\"\n\n{ai_response}"
+                            # Транскрибируем голосовое сообщение
+                            transcription_result = await process_voice_transcription(audio_to_process, user_id)
                             
-                            logger.info(f"✅ Голосовое сообщение обработано за {processing_time:.1f}с")
-                        else:
-                            # Ошибка обработки голосового сообщения
-                            error_msg = voice_result["error"]
-                            logger.error(f"❌ Ошибка обработки голосового сообщения: {error_msg}")
-                            response = "Извините, не удалось обработать ваше голосовое сообщение. Попробуйте отправить текстом или записать еще раз."
-                            
-                    except Exception as voice_error:
-                        logger.error(f"❌ Неожиданная ошибка при обработке голосового сообщения: {voice_error}")
-                        response = "Извините, произошла ошибка при обработке голосового сообщения. Попробуйте написать текстом."
+                            if transcription_result and transcription_result.get('success'):
+                                # Получаем транскрибированный текст
+                                transcribed_text = transcription_result.get('text')
+                                logger.info(f"✅ Транскрипция: {transcribed_text}")
+                                
+                                # КЛЮЧЕВОЙ МОМЕНТ: устанавливаем text = транскрипция и обрабатываем как обычное сообщение
+                                text = transcribed_text
+                                
+                                # Продолжаем обработку как текстовое сообщение (ниже)
+                            else:
+                                # Ошибка транскрипции
+                                error_msg = transcription_result.get('error', 'Ошибка транскрипции')
+                                logger.error(f"❌ Ошибка транскрипции: {error_msg}")
+                                response = "Извините, не удалось обработать ваше голосовое сообщение. Попробуйте отправить текстом или записать еще раз."
+                                # Отправляем ошибку и завершаем обработку
+                                bot.send_message(chat_id, response)
+                                logger.info(f"✅ Сообщение об ошибке голоса отправлено в чат {chat_id}")
+                                return {"ok": True, "action": "voice_transcription_failed"}
+                                
+                        except Exception as voice_error:
+                            logger.error(f"❌ Неожиданная ошибка при обработке голосового сообщения: {voice_error}")
+                            response = "Извините, произошла ошибка при обработке голосового сообщения. Попробуйте написать текстом."
+                            bot.send_message(chat_id, response)
+                            logger.info(f"✅ Сообщение об ошибке голоса отправлено в чат {chat_id}")
+                            return {"ok": True, "action": "voice_processing_error"}
+                    else:
+                        response = "Извините, голосовые сообщения временно не поддерживаются."
+                        bot.send_message(chat_id, response)
+                        logger.info(f"✅ Сообщение о недоступности голоса отправлено в чат {chat_id}")
+                        return {"ok": True, "action": "voice_service_unavailable"}
                 
                 # === ОБРАБОТКА КОМАНД И ТЕКСТА ===
                 elif text.startswith("/start"):
@@ -367,7 +410,7 @@ async def process_webhook(request: Request):
                 
                 elif text.startswith("/voice_debug"):
                     # Команда для получения последних ошибок голосового сервиса
-                    if AI_ENABLED and agent.voice_service:
+                    if voice_service:
                         # Создаем тестовое голосовое сообщение с валидной структурой
                         test_voice = {
                             'file_id': 'test_invalid_file_id_12345',
@@ -376,16 +419,13 @@ async def process_webhook(request: Request):
                         }
                         
                         try:
-                            result = await agent.process_voice_message(
-                                test_voice, str(user_id), "test_msg", user_name
-                            )
+                            result = await process_voice_transcription(test_voice, user_id)
                             
                             response = f"""🔍 Тест голосового сервиса:
                             
 📊 **Результат тестирования:**
 • Успех: {result.get('success', False)}
 • Ошибка: {result.get('error', 'Нет ошибки')}
-• Время обработки: {result.get('processing_time', 0)}с
 
 💡 **Диагностика:**
 Если success=False, то проблема в обработке файлов.
@@ -397,9 +437,9 @@ async def process_webhook(request: Request):
                 
                 elif text.startswith("/voice_test"):
                     # Тестовая команда для проверки голосового сервиса
-                    if AI_ENABLED and agent.voice_service:
-                        service_info = agent.voice_service.get_service_info()
-                        test_results = await agent.voice_service.test_service()
+                    if voice_service:
+                        service_info = voice_service.get_service_info()
+                        test_results = await voice_service.test_service()
                         
                         response = f"""🎤 Статус голосового сервиса:
                         
@@ -422,7 +462,7 @@ async def process_webhook(request: Request):
                         response = "❌ Голосовой сервис недоступен"
                 
                 elif text.startswith("/help"):
-                    voice_status = "✅ Поддерживаются" if (AI_ENABLED and agent.voice_service) else "❌ Не поддерживаются"
+                    voice_status = "✅ Поддерживаются" if voice_service else "❌ Не поддерживаются"
                     response = f"""ℹ️ Помощь по ignatova-stroinost-bot:
 /start - начать работу
 /help - показать помощь
@@ -516,59 +556,52 @@ async def process_webhook(request: Request):
                             await agent.ensure_session_exists(session_id, f"business_{user_id}")
                         
                         # === ОБРАБОТКА ГОЛОСОВЫХ И АУДИО BUSINESS СООБЩЕНИЙ ===
+                        # По образцу artem.integrator: транскрибируем → устанавливаем text → обрабатываем как текст
                         if (is_voice_message or audio_data or (document_data and document_data.get("mime_type", "").startswith("audio/"))):
-                            # Определяем какие данные использовать для обработки
+                            # Определяем какие данные использовать для транскрибации
+                            audio_to_process = None
                             audio_type = ""
                             
                             if is_voice_message:
+                                audio_to_process = voice_data
                                 audio_type = "голосовое business"
                             elif audio_data:
+                                audio_to_process = audio_data
                                 audio_type = "аудио business"
                             elif document_data and document_data.get("mime_type", "").startswith("audio/"):
+                                audio_to_process = document_data
                                 audio_type = "аудио документ business"
-                                
-                            try:
-                                logger.info(f"🎤 Обрабатываем {audio_type} сообщение от {user_name}")
-                                
-                                # Обрабатываем аудио сообщение через AI агента с правильной структурой
-                                if is_voice_message:
-                                    # Для голосовых сообщений передаем voice_data напрямую
-                                    voice_result = await agent.process_voice_message(
-                                        voice_data, str(user_id), str(bus_msg["message_id"]), user_name
-                                    )
-                                elif audio_data:
-                                    # Для аудио сообщений оборачиваем в структуру с ключом 'audio'
-                                    wrapped_audio = {'audio': audio_data}
-                                    voice_result = await agent.process_voice_message(
-                                        wrapped_audio, str(user_id), str(bus_msg["message_id"]), user_name
-                                    )
-                                else:
-                                    # Для документов передаем как есть
-                                    voice_result = await agent.process_voice_message(
-                                        document_data, str(user_id), str(bus_msg["message_id"]), user_name
-                                    )
-                                
-                                if voice_result["success"]:
-                                    transcribed_text = voice_result["transcribed_text"]
-                                    ai_response = voice_result["ai_response"]
-                                    processing_time = voice_result.get("processing_time", 0)
+                            
+                            if audio_to_process and voice_service:
+                                try:
+                                    logger.info(f"🎤 Транскрибируем {audio_type} сообщение от {user_name}")
                                     
-                                    # Отправляем результат клиенту
-                                    response = f"🎤 Ваше сообщение:\n\"{transcribed_text}\"\n\n{ai_response}"
+                                    # Транскрибируем голосовое сообщение
+                                    transcription_result = await process_voice_transcription(audio_to_process, user_id)
                                     
-                                    logger.info(f"✅ Business голосовое сообщение обработано за {processing_time:.1f}с")
-                                else:
-                                    # Ошибка обработки голосового сообщения
-                                    error_msg = voice_result["error"]
-                                    logger.error(f"❌ Ошибка обработки business голосового сообщения: {error_msg}")
-                                    response = "Извините, не удалось обработать ваше голосовое сообщение. Попробуйте отправить текстом."
-                                    
-                            except Exception as voice_error:
-                                logger.error(f"❌ Ошибка при обработке business голосового сообщения: {voice_error}")
-                                response = "Извините, произошла ошибка при обработке голосового сообщения. Попробуйте написать текстом."
+                                    if transcription_result and transcription_result.get('success'):
+                                        # Получаем транскрибированный текст
+                                        transcribed_text = transcription_result.get('text')
+                                        logger.info(f"✅ Business транскрипция: {transcribed_text}")
+                                        
+                                        # КЛЮЧЕВОЙ МОМЕНТ: устанавливаем text = транскрипция и обрабатываем как обычное сообщение
+                                        text = transcribed_text
+                                        
+                                        # Продолжаем обработку как текстовое сообщение (ниже в блоке AI)
+                                    else:
+                                        # Ошибка транскрипции
+                                        error_msg = transcription_result.get('error', 'Ошибка транскрипции')
+                                        logger.error(f"❌ Ошибка business транскрипции: {error_msg}")
+                                        response = "Извините, не удалось обработать ваше голосовое сообщение. Попробуйте отправить текстом."
+                                        
+                                except Exception as voice_error:
+                                    logger.error(f"❌ Ошибка при обработке business голосового сообщения: {voice_error}")
+                                    response = "Извините, произошла ошибка при обработке голосового сообщения. Попробуйте написать текстом."
+                            else:
+                                response = "Извините, голосовые сообщения временно не поддерживаются."
                         
-                        # === ОБРАБОТКА ТЕКСТОВЫХ BUSINESS СООБЩЕНИЙ ===
-                        else:
+                        # === ОБРАБОТКА ТЕКСТОВЫХ BUSINESS СООБЩЕНИЙ (включая транскрибированные) ===
+                        if text:  # Обрабатываем текст (в том числе транскрибированный из голоса)
                             response = await agent.generate_response(text, session_id, user_name)
                             logger.info(f"✅ AI ответ сгенерирован: {response[:100]}...")
                     else:

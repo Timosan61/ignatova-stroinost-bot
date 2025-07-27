@@ -246,6 +246,48 @@ class VoiceService:
             "status": "ready" if self.whisper_client else "not_configured"
         }
     
+    async def transcribe_voice_message(
+        self, 
+        voice_data: Dict[str, Any], 
+        user_id: str, 
+        message_id: str
+    ) -> Dict[str, Any]:
+        """
+        Простой метод транскрибации голосового сообщения (по образцу artem.integrator)
+        
+        Args:
+            voice_data: Данные голосового сообщения от Telegram
+            user_id: ID пользователя
+            message_id: ID сообщения
+        
+        Returns:
+            Dict с результатом: {"success": bool, "text": str, "error": str}
+        """
+        try:
+            # Используем основной метод для обработки
+            result = await self.process_voice_message(voice_data, user_id, message_id, language="ru")
+            
+            if result["success"]:
+                return {
+                    "success": True,
+                    "text": result["text"],
+                    "error": None
+                }
+            else:
+                return {
+                    "success": False,
+                    "text": None,
+                    "error": result["error"]
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка транскрибации голосового сообщения: {e}")
+            return {
+                "success": False,
+                "text": None,
+                "error": f"Transcription error: {str(e)}"
+            }
+
     @staticmethod
     def cleanup_old_files():
         """Очищает старые временные файлы"""

@@ -57,7 +57,14 @@ async def test_voice_debug():
                 # Тестируем только извлечение file_id и базовую валидацию
                 from bot.voice.voice_service import VoiceService
                 
-                vs = agent.voice_service
+                # Теперь voice_service находится в webhook
+                print("  ℹ️ Голосовой сервис теперь находится в webhook.py, а не в agent")
+                try:
+                    import webhook
+                    vs = webhook.voice_service
+                except:
+                    vs = None
+                    
                 if vs:
                     # Симулируем начало process_voice_message
                     file_id = test_data.get('file_id')
@@ -88,14 +95,24 @@ async def test_voice_debug():
                 print(f"  ❌ Ошибка при тестировании: {e}")
         
         print("\n=== ОБЩАЯ ИНФОРМАЦИЯ О СЕРВИСЕ ===")
-        if agent.voice_service:
-            service_info = agent.voice_service.get_service_info()
-            test_results = await agent.voice_service.test_service()
+        
+        # Проверяем voice_service из webhook
+        try:
+            import webhook
+            voice_service = webhook.voice_service
             
-            print(f"Сервис готов: {test_results.get('service_ready', False)}")
-            print(f"Whisper подключение: {test_results.get('whisper_connection', False)}")
-            print(f"Поддерживаемые форматы: {service_info.get('supported_formats', [])}")
-        else:
+            if voice_service:
+                service_info = voice_service.get_service_info()
+                test_results = await voice_service.test_service()
+                
+                print(f"✅ Voice service найден в webhook")
+                print(f"Сервис готов: {test_results.get('service_ready', False)}")
+                print(f"Whisper подключение: {test_results.get('whisper_connection', False)}")
+                print(f"Поддерживаемые форматы: {service_info.get('supported_formats', [])}")
+            else:
+                print("❌ Голосовой сервис не инициализирован в webhook")
+        except Exception as e:
+            print(f"❌ Ошибка проверки webhook voice service: {e}")
             print("❌ Голосовой сервис недоступен")
                         
     except Exception as e:
