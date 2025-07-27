@@ -35,7 +35,7 @@ DOWNLOAD_TIMEOUT_SECONDS = 30
 WHISPER_TIMEOUT_SECONDS = 60
 
 # Логирование
-VOICE_LOG_LEVEL = os.getenv('VOICE_LOG_LEVEL', 'INFO')
+VOICE_LOG_LEVEL = os.getenv('VOICE_LOG_LEVEL', 'DEBUG')
 
 # Создаем временную папку если её нет
 def ensure_temp_dir():

@@ -48,6 +48,9 @@ class TelegramAudioDownloader:
             )
             
             async with self.session.post(url, json={"file_id": file_id}) as response:
+                response_text = await response.text()
+                logger.debug(f"📡 Telegram API ответ: {response.status} - {response_text[:200]}")
+                
                 if response.status == 200:
                     data = await response.json()
                     if data.get("ok"):
@@ -55,10 +58,12 @@ class TelegramAudioDownloader:
                         logger.info(f"✅ Получена информация о файле {file_id}: {file_info.get('file_size')} bytes")
                         return file_info
                     else:
-                        logger.error(f"❌ Telegram API ошибка: {data.get('description')}")
+                        error_desc = data.get('description', 'Unknown error')
+                        logger.error(f"❌ Telegram API ошибка: {error_desc}")
                         return None
                 else:
                     logger.error(f"❌ HTTP ошибка при получении файла: {response.status}")
+                    logger.error(f"📄 Ответ сервера: {response_text}")
                     return None
                     
         except Exception as e:

@@ -267,6 +267,18 @@ async def process_webhook(request: Request):
             voice_data = msg.get("voice")
             is_voice_message = bool(voice_data)
             
+            # Отладочное логирование
+            if is_voice_message:
+                logger.info(f"🎤 Получены данные голосового сообщения: {voice_data}")
+            
+            # Проверим также аудио сообщения
+            audio_data = msg.get("audio")
+            document_data = msg.get("document")
+            if audio_data:
+                logger.info(f"🎵 Получено аудио сообщение: {audio_data}")
+            if document_data and document_data.get("mime_type", "").startswith("audio/"):
+                logger.info(f"📎 Получен аудио документ: {document_data}")
+            
             try:
                 # Пытаемся отправить индикатор набора текста
                 try:
@@ -277,14 +289,28 @@ async def process_webhook(request: Request):
                 except Exception as typing_error:
                     logger.warning(f"⚠️ Не удалось отправить typing индикатор: {typing_error}")
                 
-                # === ОБРАБОТКА ГОЛОСОВЫХ СООБЩЕНИЙ ===
-                if is_voice_message and AI_ENABLED:
+                # === ОБРАБОТКА ГОЛОСОВЫХ И АУДИО СООБЩЕНИЙ ===
+                if (is_voice_message or audio_data or (document_data and document_data.get("mime_type", "").startswith("audio/"))) and AI_ENABLED:
+                    # Определяем какие данные использовать для обработки
+                    audio_to_process = None
+                    audio_type = ""
+                    
+                    if is_voice_message:
+                        audio_to_process = voice_data
+                        audio_type = "голосовое"
+                    elif audio_data:
+                        audio_to_process = audio_data
+                        audio_type = "аудио"
+                    elif document_data and document_data.get("mime_type", "").startswith("audio/"):
+                        audio_to_process = document_data
+                        audio_type = "аудио документ"
                     try:
-                        logger.info(f"🎤 Получено голосовое сообщение от {user_name}")
+                        logger.info(f"🎤 Получено {audio_type} сообщение от {user_name}")
+                        logger.info(f"📋 Данные аудио: {audio_to_process}")
                         
-                        # Обрабатываем голосовое сообщение через AI агента
+                        # Обрабатываем аудио сообщение через AI агента
                         voice_result = await agent.process_voice_message(
-                            voice_data, str(user_id), str(msg["message_id"]), user_name
+                            audio_to_process, str(user_id), str(msg["message_id"]), user_name
                         )
                         
                         if voice_result["success"]:
@@ -369,6 +395,18 @@ async def process_webhook(request: Request):
             # Проверяем наличие голосового сообщения в Business API
             voice_data = bus_msg.get("voice")
             is_voice_message = bool(voice_data)
+            
+            # Отладочное логирование для Business API
+            if is_voice_message:
+                logger.info(f"🎤 Business: Получены данные голосового сообщения: {voice_data}")
+            
+            # Проверим также другие типы аудио в Business API
+            audio_data = bus_msg.get("audio")
+            document_data = bus_msg.get("document")
+            if audio_data:
+                logger.info(f"🎵 Business: Получено аудио сообщение: {audio_data}")
+            if document_data and document_data.get("mime_type", "").startswith("audio/"):
+                logger.info(f"📎 Business: Получен аудио документ: {document_data}")
             
             # 🚫 КРИТИЧНАЯ ПРОВЕРКА: Игнорируем сообщения от владельца аккаунта
             if business_connection_id and business_connection_id in business_owners:
