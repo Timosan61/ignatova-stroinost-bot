@@ -473,6 +473,10 @@ class TextilProAgent:
             
         except Exception as e:
             logger.error(f"❌ Ошибка обработки голосового сообщения: {e}")
+            logger.error(f"📋 Данные voice_data: {voice_data}")
+            logger.error(f"🔍 Тип ошибки: {type(e).__name__}")
+            import traceback
+            logger.error(f"📄 Полный трейс: {traceback.format_exc()}")
             return {
                 "success": False,
                 "error": f"Неожиданная ошибка: {str(e)}",

@@ -268,6 +268,8 @@ async def process_webhook(request: Request):
             is_voice_message = bool(voice_data)
             
             # Отладочное логирование
+            logger.info(f"📨 Все данные сообщения: {msg}")
+            
             if is_voice_message:
                 logger.info(f"🎤 Получены данные голосового сообщения: {voice_data}")
             
@@ -278,6 +280,16 @@ async def process_webhook(request: Request):
                 logger.info(f"🎵 Получено аудио сообщение: {audio_data}")
             if document_data and document_data.get("mime_type", "").startswith("audio/"):
                 logger.info(f"📎 Получен аудио документ: {document_data}")
+            
+            # Проверим все поля сообщения, которые могут содержать аудио
+            possible_audio_fields = ['voice', 'audio', 'document', 'video_note']
+            found_audio = []
+            for field in possible_audio_fields:
+                if msg.get(field):
+                    found_audio.append(f"{field}: {msg.get(field)}")
+            
+            if found_audio:
+                logger.info(f"🔍 Найденные аудио/медиа поля: {found_audio}")
             
             try:
                 # Пытаемся отправить индикатор набора текста
@@ -352,6 +364,36 @@ async def process_webhook(request: Request):
                         response = agent.get_welcome_message()
                     else:
                         response = f"👋 Привет, {user_name}! Добро пожаловать в ignatova-stroinost-bot бот!"
+                
+                elif text.startswith("/voice_debug"):
+                    # Команда для получения последних ошибок голосового сервиса
+                    if AI_ENABLED and agent.voice_service:
+                        # Создаем тестовое голосовое сообщение с валидной структурой
+                        test_voice = {
+                            'file_id': 'test_invalid_file_id_12345',
+                            'duration': 3,
+                            'file_size': 1000
+                        }
+                        
+                        try:
+                            result = await agent.process_voice_message(
+                                test_voice, str(user_id), "test_msg", user_name
+                            )
+                            
+                            response = f"""🔍 Тест голосового сервиса:
+                            
+📊 **Результат тестирования:**
+• Успех: {result.get('success', False)}
+• Ошибка: {result.get('error', 'Нет ошибки')}
+• Время обработки: {result.get('processing_time', 0)}с
+
+💡 **Диагностика:**
+Если success=False, то проблема в обработке файлов.
+Если success=True, то проблема в webhook логике."""
+                        except Exception as e:
+                            response = f"❌ Ошибка при тестировании: {str(e)}"
+                    else:
+                        response = "❌ Голосовой сервис недоступен"
                 
                 elif text.startswith("/voice_test"):
                     # Тестовая команда для проверки голосового сервиса
