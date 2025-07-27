@@ -710,6 +710,82 @@ async def get_recent_logs():
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+@app.get("/debug/voice-logs")
+async def get_voice_logs():
+    """Получить последние логи связанные с голосовыми сообщениями"""
+    try:
+        import os
+        log_file = "logs/bot.log"
+        voice_lines = []
+        
+        if os.path.exists(log_file):
+            with open(log_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                # Ищем логи связанные с голосом
+                voice_keywords = ['голос', 'voice', '🎤', '🔑', 'file_id', 'транскри', 'whisper', 'audio']
+                for line in lines:
+                    if any(keyword.lower() in line.lower() for keyword in voice_keywords):
+                        voice_lines.append(line.strip())
+                
+                # Возвращаем последние 30 записей о голосе
+                recent_voice_lines = voice_lines[-30:] if len(voice_lines) > 30 else voice_lines
+                
+                return {
+                    "status": "success",
+                    "voice_logs": recent_voice_lines,
+                    "total_voice_logs": len(voice_lines),
+                    "voice_service_status": "active" if voice_service else "inactive"
+                }
+        else:
+            return {
+                "status": "error",
+                "error": "Log file not found"
+            }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@app.get("/debug/production-status")
+async def production_status():
+    """Получить подробный статус продакшен сервера"""
+    try:
+        import os
+        import sys
+        from datetime import datetime
+        
+        status = {
+            "timestamp": datetime.now().isoformat(),
+            "voice_service": {
+                "initialized": voice_service is not None,
+                "telegram_token": bool(TELEGRAM_BOT_TOKEN),
+                "openai_key": bool(OPENAI_API_KEY)
+            },
+            "ai_agent": {
+                "enabled": AI_ENABLED,
+                "initialized": agent is not None
+            },
+            "environment": {
+                "python_version": sys.version,
+                "working_directory": os.getcwd(),
+                "log_file_exists": os.path.exists("logs/bot.log")
+            },
+            "recent_errors": []
+        }
+        
+        # Получаем последние ошибки из логов
+        if os.path.exists("logs/bot.log"):
+            with open("logs/bot.log", 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                error_lines = []
+                for line in lines[-50:]:  # Последние 50 строк
+                    if 'ERROR' in line or '❌' in line or 'Exception' in line:
+                        error_lines.append(line.strip())
+                status["recent_errors"] = error_lines[-10:]  # Последние 10 ошибок
+        
+        return {"status": "success", "data": status}
+        
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
 @app.get("/debug/prompt")
 async def get_current_prompt():
     """Получить информацию о текущих инструкциях"""
