@@ -722,6 +722,39 @@ async def get_recent_logs():
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
+@app.get("/debug/zep-status") 
+async def get_zep_status():
+    """Проверить статус Zep Memory"""
+    if not AI_ENABLED:
+        return {
+            "status": "error",
+            "error": "AI модуль не загружен",
+            "zep_client_initialized": False,
+            "memory_mode": "Unavailable"
+        }
+    
+    try:
+        zep_api_key = os.getenv('ZEP_API_KEY', '')
+        zep_client = agent.zep_client if hasattr(agent, 'zep_client') else None
+        
+        return {
+            "status": "success",
+            "zep_api_key_set": bool(zep_api_key and zep_api_key != "test_key"),
+            "zep_api_key_length": len(zep_api_key) if zep_api_key else 0,
+            "zep_api_key_preview": f"{zep_api_key[:8]}..." if zep_api_key else "Not set",
+            "zep_client_initialized": zep_client is not None,
+            "memory_mode": "Zep Cloud" if zep_client else "Local Memory",
+            "ai_agent_loaded": True,
+            "current_time": datetime.now().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "error", 
+            "error": str(e),
+            "zep_client_initialized": False,
+            "memory_mode": "Error"
+        }
+
 @app.get("/debug/voice-logs")
 async def get_voice_logs():
     """Получить последние логи связанные с голосовыми сообщениями"""
