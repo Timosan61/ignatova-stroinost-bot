@@ -577,3 +577,517 @@
 
 ---
 
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `ca60cff9-857f-4188-bdbb-c62d8401c4ef`
+- **Timestamp:** 2025-07-28 04:51:27
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/ca60cff9-857f-4188-bdbb-c62d8401c4ef.jsonl`
+
+### Git Status:
+```
+D  ADMIN_GUIDE.md
+D  ADMIN_MESSAGE_FILTER.md
+A  API_GUIDE.md
+D  BUSINESS_API_DEBUG.md
+D  BUSINESS_API_GUIDE.md
+D  BUSINESS_OWNER_FILTER_GUIDE.md
+D  DEPLOY_GUIDE.md
+D  Dockerfile.complete
+D  Dockerfile.final
+D  Dockerfile.streamlit
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `ca60cff9-857f-4188-bdbb-c62d8401c4ef`
+- **Timestamp:** 2025-07-28 04:51:46
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/ca60cff9-857f-4188-bdbb-c62d8401c4ef.jsonl`
+
+### Git Status:
+```
+D  ADMIN_GUIDE.md
+D  ADMIN_MESSAGE_FILTER.md
+A  API_GUIDE.md
+D  BUSINESS_API_DEBUG.md
+D  BUSINESS_API_GUIDE.md
+D  BUSINESS_OWNER_FILTER_GUIDE.md
+D  DEPLOY_GUIDE.md
+D  Dockerfile.complete
+D  Dockerfile.final
+D  Dockerfile.streamlit
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `ca60cff9-857f-4188-bdbb-c62d8401c4ef`
+- **Timestamp:** 2025-07-28 04:53:25
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/ca60cff9-857f-4188-bdbb-c62d8401c4ef.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `ca60cff9-857f-4188-bdbb-c62d8401c4ef`
+- **Timestamp:** 2025-07-28 04:53:31
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/ca60cff9-857f-4188-bdbb-c62d8401c4ef.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `ca60cff9-857f-4188-bdbb-c62d8401c4ef`
+- **Timestamp:** 2025-07-28 04:53:39
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/ca60cff9-857f-4188-bdbb-c62d8401c4ef.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `ca60cff9-857f-4188-bdbb-c62d8401c4ef`
+- **Timestamp:** 2025-07-28 04:53:49
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-system-clones-ignatova-stroinost-bot/ca60cff9-857f-4188-bdbb-c62d8401c4ef.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 07:06:50
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 07:06:51
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 07:06:55
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 07:06:55
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 07:06:56
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 07:07:03
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 07:07:14
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:49:14
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:49:20
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:49:22
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:49:37
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:54:56
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:54:57
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:55:03
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:55:03
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:55:10
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:55:16
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:55:16
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:55:20
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:55:53
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:58:27
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:58:34
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:58:39
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:58:48
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:58:48
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
