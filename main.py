@@ -31,14 +31,20 @@ print("🚀 Загрузка ignatova-stroinost-bot (Refactored)...")
 
 # Импорт AI модулей
 try:
+    print("🔄 Загружаем TextilProAgent...")
     from bot.agent import TextilProAgent
+    print("🔄 Инициализируем TextilProAgent...")
     agent = TextilProAgent()
     AI_ENABLED = True
     print("✅ AI Agent загружен успешно")
 except ImportError as e:
-    print(f"⚠️ AI Agent не доступен: {e}")
+    print(f"⚠️ AI Agent не доступен (ImportError): {e}")
+    print(f"⚠️ Детали ImportError: {type(e).__name__}: {str(e)}")
 except Exception as e:
     print(f"❌ Ошибка загрузки AI Agent: {e}")
+    print(f"❌ Детали ошибки: {type(e).__name__}: {str(e)}")
+    import traceback
+    print(f"❌ Полный стек ошибок:\n{traceback.format_exc()}")
 
 # Импорт обработчиков
 try:
