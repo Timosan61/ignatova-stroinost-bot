@@ -285,9 +285,10 @@ class TextilProAgent:
             # Используем LLM роутер
             if self.openai_client or self.anthropic_client:
                 try:
-                    bot_response = await self.call_llm(messages, max_tokens=1000, temperature=0.5)
+                    bot_response = await self.call_llm(messages, max_tokens=2000, temperature=0.5)
                 except Exception as llm_error:
-                    logger.error(f"❌ Все LLM недоступны: {llm_error}")
+                    logger.error(f"❌ Ошибка LLM: {type(llm_error).__name__}: {llm_error}")
+                    print(f"❌ Детали ошибки LLM: {llm_error}")
                     # Fallback на простые ответы если все LLM недоступны
                     user_message_lower = user_message.lower()
                     
