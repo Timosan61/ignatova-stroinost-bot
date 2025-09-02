@@ -1091,3 +1091,83 @@ D  Dockerfile.streamlit
 
 ---
 
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:59:00
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+Working tree clean
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:59:11
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:59:26
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:59:34
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
+## 📦 Compact Trigger: `unknown`
+
+- **Session ID:** `8f0da27c-1372-4d44-a0cc-174c63a94ae2`
+- **Timestamp:** 2025-07-28 08:59:40
+- **Working Directory:** `/home/coder/Desktop/2202/bot_cloning_system/clones/ignatova-stroinost-bot`
+- **Transcript:** `/home/coder/.claude/projects/-home-coder-Desktop-2202-bot-cloning-digital-ocean/8f0da27c-1372-4d44-a0cc-174c63a94ae2.jsonl`
+
+### Git Status:
+```
+ M debug-history.md
+```
+
+### Recent Events:
+
+---
+
