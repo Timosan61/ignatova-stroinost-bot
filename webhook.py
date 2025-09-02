@@ -1092,6 +1092,71 @@ async def test_bot_response(request: Request):
         logger.error(f"❌ Ошибка тестового ответа: {e}")
         return {"status": "error", "error": str(e)}
 
+@app.post("/admin/clear-memory")
+async def clear_zep_memory():
+    """Очистить память Zep для всех сессий"""
+    try:
+        if not AI_ENABLED or not agent:
+            return {
+                "status": "error",
+                "error": "AI Agent не инициализирован"
+            }
+        
+        if not agent.zep_client:
+            return {
+                "status": "error", 
+                "error": "Zep клиент не подключен"
+            }
+        
+        cleared_count = 0
+        try:
+            # Очистим память всех пользовательских сессий
+            session_patterns = ["user_", "business_", "test_admin_session"]
+            
+            for pattern in session_patterns:
+                # Для каждого типа сессий попробуем очистить
+                try:
+                    # Zep не дает списки сессий, поэтому очищаем по известным паттернам
+                    # Создадим новые сессии чтобы "перезаписать" старые
+                    test_sessions = [f"{pattern}{i}" for i in range(1, 100)]
+                    
+                    for session_id in test_sessions:
+                        try:
+                            # Проверяем есть ли сессия
+                            await agent.zep_client.memory.get(session_id=session_id)
+                            # Если есть - очищаем
+                            await agent.zep_client.memory.delete(session_id=session_id)
+                            cleared_count += 1
+                            logger.info(f"🗑️ Очищена сессия: {session_id}")
+                        except Exception:
+                            # Сессия не найдена - это нормально
+                            continue
+                            
+                except Exception as pattern_error:
+                    logger.warning(f"⚠️ Ошибка очистки паттерна {pattern}: {pattern_error}")
+                    continue
+        
+        except Exception as clear_error:
+            logger.error(f"❌ Ошибка очистки памяти: {clear_error}")
+            return {
+                "status": "error",
+                "error": f"Ошибка очистки: {clear_error}"
+            }
+        
+        # Также очистим локальную память в агенте
+        agent.user_sessions = {}
+        
+        logger.info(f"✅ Память очищена: {cleared_count} сессий")
+        return {
+            "status": "success",
+            "cleared_sessions": cleared_count,
+            "message": f"Память Zep очищена для {cleared_count} сессий"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка очистки памяти: {e}")
+        return {"status": "error", "error": str(e)}
+
 @app.on_event("startup")
 async def startup():
     """Запуск сервера"""

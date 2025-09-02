@@ -205,7 +205,7 @@ class TextilProAgent:
         
         return "\n".join(history) if history else ""
     
-    async def call_llm(self, messages: list, max_tokens: int = 1000, temperature: float = 0.7) -> str:
+    async def call_llm(self, messages: list, max_tokens: int = 1000, temperature: float = 0.5) -> str:
         """Роутер LLM запросов с fallback между OpenAI и Anthropic"""
         
         # Сначала пробуем OpenAI
@@ -288,7 +288,7 @@ class TextilProAgent:
             # Используем LLM роутер
             if self.openai_client or self.anthropic_client:
                 try:
-                    bot_response = await self.call_llm(messages, max_tokens=1000, temperature=0.7)
+                    bot_response = await self.call_llm(messages, max_tokens=1000, temperature=0.5)
                 except Exception as llm_error:
                     logger.error(f"❌ Все LLM недоступны: {llm_error}")
                     # Fallback на простые ответы если все LLM недоступны

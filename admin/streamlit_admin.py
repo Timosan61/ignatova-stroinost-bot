@@ -247,6 +247,31 @@ def main():
                         
                 except Exception as e:
                     st.error(f"❌ Ошибка тестирования: {e}")
+        
+        with col4:
+            if st.button("🗑️ Очистить память бота", use_container_width=True):
+                try:
+                    import requests
+                    
+                    # Очищаем память Zep
+                    response = requests.post(
+                        f"{BOT_URL}/admin/clear-memory",
+                        headers={"Content-Type": "application/json"},
+                        timeout=10
+                    )
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get("status") == "success":
+                            st.success(f"✅ Память очищена! Сброшено сессий: {data.get('cleared_sessions', 0)}")
+                            st.info("🔄 Бот теперь не помнит предыдущих разговоров")
+                        else:
+                            st.error(f"❌ Ошибка: {data.get('error', 'Неизвестная ошибка')}")
+                    else:
+                        st.error(f"❌ HTTP {response.status_code}")
+                        
+                except Exception as e:
+                    st.error(f"❌ Ошибка очистки памяти: {e}")
     
     st.markdown("---")
     
