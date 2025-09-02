@@ -993,7 +993,8 @@ async def update_instructions(request: Request):
         
         # Сохраняем в файл
         import json
-        with open(agent.instruction_file, 'w', encoding='utf-8') as f:
+        from bot.config import INSTRUCTION_FILE
+        with open(INSTRUCTION_FILE, 'w', encoding='utf-8') as f:
             json.dump(instruction_data, f, ensure_ascii=False, indent=2)
         
         # Перезагружаем в агенте
