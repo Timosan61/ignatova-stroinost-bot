@@ -148,12 +148,24 @@ def main():
                     response = requests.get(f"{BOT_URL}/", timeout=10)
                     if response.status_code == 200:
                         st.success("✅ Бот онлайн и работает")
-                        # Дополнительная проверка debug endpoint если есть
+                        
+                        # Проверяем какие инструкции реально использует бот
                         try:
-                            debug_response = requests.get(f"{BOT_URL}/debug/status", timeout=5)
-                            if debug_response.status_code == 200:
-                                debug_data = debug_response.json()
-                                st.json(debug_data)
+                            inst_response = requests.get(f"{BOT_URL}/admin/get-instructions", timeout=5)
+                            if inst_response.status_code == 200:
+                                inst_data = inst_response.json()
+                                if inst_data.get("status") == "success":
+                                    instructions = inst_data.get("instructions", {})
+                                    st.info(f"📋 Время загрузки инструкций: {inst_data.get('loaded_at', 'неизвестно')}")
+                                    
+                                    with st.expander("📖 Текущая системная инструкция в боте"):
+                                        current_instruction = instructions.get("system_instruction", "Не найдена")
+                                        st.text_area(
+                                            "Инструкция, которую реально использует бот:",
+                                            value=current_instruction,
+                                            height=200,
+                                            disabled=True
+                                        )
                         except:
                             pass
                     else:
@@ -199,6 +211,42 @@ def main():
                         
                 except Exception as e:
                     st.error(f"❌ Ошибка подключения к боту: {e}")
+        
+        # Добавляем кнопку для тестирования реального ответа бота
+        st.markdown("### 🧪 Тестирование бота")
+        
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            if st.button("🤖 Протестировать ответ бота", use_container_width=True):
+                try:
+                    import requests
+                    
+                    # Отправляем тестовый вопрос
+                    test_response = requests.post(
+                        f"{BOT_URL}/admin/test-response",
+                        json={"message": "Представьтесь, пожалуйста, и скажите от какой компании вы"},
+                        headers={"Content-Type": "application/json"},
+                        timeout=15
+                    )
+                    
+                    if test_response.status_code == 200:
+                        test_data = test_response.json()
+                        if test_data.get("status") == "success":
+                            st.success("✅ Ответ получен!")
+                            st.write(f"**Вопрос:** {test_data.get('test_message', '')}")
+                            st.write(f"**Ответ бота:** {test_data.get('bot_response', '')}")
+                            st.info(f"🕐 Время инструкции: {test_data.get('instruction_timestamp', '')}")
+                            
+                            with st.expander("📝 Используемая системная инструкция"):
+                                st.text(test_data.get('system_instruction_used', ''))
+                        else:
+                            st.error(f"❌ Ошибка: {test_data.get('error', 'Неизвестная ошибка')}")
+                    else:
+                        st.error(f"❌ HTTP {test_response.status_code}")
+                        
+                except Exception as e:
+                    st.error(f"❌ Ошибка тестирования: {e}")
     
     st.markdown("---")
     

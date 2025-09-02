@@ -997,9 +997,12 @@ async def update_instructions(request: Request):
         with open(INSTRUCTION_FILE, 'w', encoding='utf-8') as f:
             json.dump(instruction_data, f, ensure_ascii=False, indent=2)
         
-        # Перезагружаем в агенте
+        # Принудительно перезагружаем в агенте
         old_updated = agent.instruction.get('last_updated', 'неизвестно')
-        agent.reload_instruction()
+        
+        # Принудительно очищаем кеш и перезагружаем
+        agent.instruction = agent._load_instruction()
+        
         new_updated = agent.instruction.get('last_updated', 'неизвестно')
         
         logger.info(f"✅ Инструкции обновлены через API: {old_updated} -> {new_updated}")
