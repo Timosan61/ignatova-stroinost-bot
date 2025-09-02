@@ -190,11 +190,17 @@ async def debug_env():
             "OPENAI_API_KEY": "✅ Set" if os.getenv('OPENAI_API_KEY') else "❌ Missing", 
             "ANTHROPIC_API_KEY": "✅ Set" if os.getenv('ANTHROPIC_API_KEY') else "❌ Missing",
             "ZEP_API_KEY": "✅ Set" if os.getenv('ZEP_API_KEY') else "❌ Missing",
-            "WEBHOOK_SECRET_TOKEN": "✅ Set" if os.getenv('WEBHOOK_SECRET_TOKEN') else "❌ Missing"
+            "WEBHOOK_SECRET_TOKEN": "✅ Set" if os.getenv('WEBHOOK_SECRET_TOKEN') else "❌ Missing",
+            "VOICE_ENABLED": os.getenv('VOICE_ENABLED', 'not_set')
         },
         "ai_enabled": AI_ENABLED,
         "agent_initialized": bool(agent),
-        "instruction_file_exists": os.path.exists("data/instruction.json")
+        "instruction_file_exists": os.path.exists("data/instruction.json"),
+        "voice_service_status": {
+            "agent_has_voice_service": bool(agent and hasattr(agent, 'voice_service')),
+            "voice_service_initialized": bool(agent and hasattr(agent, 'voice_service') and agent.voice_service),
+            "voice_service_type": str(type(agent.voice_service)) if (agent and hasattr(agent, 'voice_service') and agent.voice_service) else None
+        }
     }
 
 # Webhook управление
