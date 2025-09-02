@@ -6,9 +6,8 @@ from datetime import datetime
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from admin.config import INSTRUCTION_FILE, DEFAULT_INSTRUCTION, STREAMLIT_CONFIG
-from admin.auth import check_password
-from admin.deploy_integration import DeployManager, show_deploy_status
+from admin.config import INSTRUCTION_FILE, DEFAULT_INSTRUCTION, STREAMLIT_CONFIG, BOT_URL
+from admin.auth import check_password, show_auth_info
 
 
 def load_instruction():
@@ -43,86 +42,151 @@ def main():
         return
     
     # Заголовок  
-    st.title("🤖 ignatova-stroinost-bot - Админ панель")
+    st.title("🤖 Ignatova Stroinost Bot - Админ панель")
     
-    # Показываем статус деплоя в боковой панели
-    deploy_manager = show_deploy_status()
+    # Показываем информацию об авторизации
+    show_auth_info()
     
     if not os.path.exists(INSTRUCTION_FILE):
         st.warning("⚠️ Файл инструкций не найден. Создайте новые инструкции.")
     
     instruction_data = load_instruction()
     
-    system_instruction = st.text_area(
-        "Системная инструкция:",
-        value=instruction_data.get("system_instruction", ""),
-        height=400
-    )
+    # Табы для разных секций
+    tab1, tab2, tab3 = st.tabs(["📝 Основные инструкции", "⚙️ Настройки", "📊 Статус бота"])
     
-    welcome_message = st.text_area(
-        "Приветственное сообщение:",
-        value=instruction_data.get("welcome_message", ""),
-        height=150
-    )
+    with tab1:
+        main_instruction = st.text_area(
+            "Главная инструкция:",
+            value=instruction_data.get("main_instruction", ""),
+            height=300,
+            help="Основная инструкция для бота - его роль и задачи"
+        )
+        
+        system_instruction = st.text_area(
+            "Системная инструкция:",
+            value=instruction_data.get("system_instruction", ""),
+            height=200,
+            help="Дополнительные системные инструкции"
+        )
+        
+        welcome_message = st.text_area(
+            "Приветственное сообщение:",
+            value=instruction_data.get("welcome_message", ""),
+            height=100,
+            help="Сообщение которое видит пользователь при первом запуске"
+        )
+    
+    with tab2:
+        st.subheader("⚙️ Настройки бота")
+        
+        settings = instruction_data.get("settings", {})
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            voice_enabled = st.checkbox(
+                "Голосовые сообщения",
+                value=settings.get("voice_enabled", True),
+                help="Включить обработку голосовых сообщений"
+            )
+            
+            memory_enabled = st.checkbox(
+                "Память разговоров",
+                value=settings.get("memory_enabled", True),
+                help="Включить сохранение контекста разговоров"
+            )
+        
+        with col2:
+            debug_mode = st.checkbox(
+                "Режим отладки",
+                value=settings.get("debug_mode", False),
+                help="Включить расширенное логирование"
+            )
+            
+            max_memory_messages = st.number_input(
+                "Макс. сообщений в памяти",
+                min_value=10,
+                max_value=200,
+                value=settings.get("max_memory_messages", 50),
+                help="Максимальное количество сообщений для хранения"
+            )
+        
+        response_temperature = st.slider(
+            "Температура ответов",
+            min_value=0.0,
+            max_value=1.0,
+            value=settings.get("response_temperature", 0.7),
+            step=0.1,
+            help="Креативность ответов (0 = строго, 1 = творчески)"
+        )
+    
+    with tab3:
+        st.subheader("📊 Статус бота")
+        
+        # Информация о последнем обновлении
+        if "last_updated" in instruction_data:
+            last_update = instruction_data["last_updated"]
+            if last_update:
+                st.info(f"📅 Последнее обновление инструкций: {last_update}")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔍 Проверить статус бота", use_container_width=True):
+                try:
+                    import requests
+                    response = requests.get(f"{BOT_URL}/", timeout=10)
+                    if response.status_code == 200:
+                        st.success("✅ Бот онлайн и работает")
+                        # Дополнительная проверка debug endpoint если есть
+                        try:
+                            debug_response = requests.get(f"{BOT_URL}/debug/status", timeout=5)
+                            if debug_response.status_code == 200:
+                                debug_data = debug_response.json()
+                                st.json(debug_data)
+                        except:
+                            pass
+                    else:
+                        st.error(f"❌ HTTP {response.status_code}")
+                except Exception as e:
+                    st.error(f"❌ Не удается подключиться к боту: {e}")
+        
+        with col2:
+            if st.button("🔄 Перезагрузить инструкции", use_container_width=True):
+                try:
+                    import requests
+                    response = requests.post(f"{BOT_URL}/admin/reload-instructions", timeout=10)
+                    if response.status_code == 200:
+                        st.success("✅ Инструкции перезагружены")
+                    else:
+                        st.warning("⚠️ Endpoint не найден - бот перезагрузит автоматически")
+                except Exception as e:
+                    st.warning(f"⚠️ Не удается перезагрузить: {e} - бот обновится автоматически")
     
     st.markdown("---")
     
-    # Статус текущего промпта в боте
-    st.subheader("📊 Статус бота")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("🔍 Проверить текущий промпт", use_container_width=True):
-            try:
-                import requests
-                response = requests.get("https://ignatova-stroinost-bot-production.up.railway.app/debug/prompt", timeout=10)
-                if response.status_code == 200:
-                    data = response.json()
-                    if "error" not in data:
-                        st.success("✅ Связь с ботом установлена")
-                        st.json(data)
-                    else:
-                        st.error(f"❌ Ошибка бота: {data['error']}")
-                else:
-                    st.error(f"❌ HTTP {response.status_code}")
-            except Exception as e:
-                st.error(f"❌ Не удается подключиться к боту: {e}")
-    
-    with col2:
-        if st.button("🔄 Перезагрузить промпт", use_container_width=True):
-            try:
-                import requests
-                response = requests.post("https://ignatova-stroinost-bot-production.up.railway.app/admin/reload-prompt", timeout=10)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("changed"):
-                        st.success(f"✅ Промпт обновлен: {data['old_updated']} → {data['new_updated']}")
-                    else:
-                        st.info("📝 Промпт перезагружен (без изменений)")
-                else:
-                    st.error(f"❌ HTTP {response.status_code}")
-            except Exception as e:
-                st.error(f"❌ Ошибка перезагрузки: {e}")
-    
-    st.markdown("---")
-    
-    if st.button("🚀 Сохранить", type="primary", use_container_width=True):
+    if st.button("🚀 Сохранить все изменения", type="primary", use_container_width=True):
         new_instruction_data = {
+            "main_instruction": main_instruction,
             "system_instruction": system_instruction,
             "welcome_message": welcome_message,
+            "settings": {
+                "voice_enabled": voice_enabled,
+                "memory_enabled": memory_enabled,
+                "debug_mode": debug_mode,
+                "max_memory_messages": max_memory_messages,
+                "response_temperature": response_temperature
+            },
             "last_updated": datetime.now().isoformat()
         }
         
         if save_instruction(new_instruction_data):
-            # Автоматический деплой через GitHub API
-            commit_message = f"Update bot instructions via admin panel\n\n- Modified system instruction\n- Updated welcome message\n- Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
-            
-            # Конвертируем данные в JSON для передачи в GitHub API
-            instruction_json = json.dumps(new_instruction_data, ensure_ascii=False, indent=2)
-            
-            deploy_manager.auto_deploy_changes(commit_message, instruction_json)
+            st.success("✅ Инструкции успешно сохранены!")
+            st.info("🔄 Бот автоматически подхватит изменения при следующем перезапуске")
             st.balloons()
+        else:
+            st.error("❌ Ошибка при сохранении инструкций")
 
 
 if __name__ == "__main__":
