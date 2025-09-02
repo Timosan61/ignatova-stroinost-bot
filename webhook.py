@@ -939,8 +939,8 @@ async def get_current_prompt():
         logger.error(f"❌ Ошибка получения промпта: {e}")
         return {"status": "error", "error": str(e)}
 
-@app.post("/admin/reload-prompt")
-async def reload_prompt():
+@app.post("/admin/reload-instructions")
+async def reload_instructions():
     """Перезагрузить инструкции из файла"""
     try:
         if AI_ENABLED and agent:
