@@ -1036,6 +1036,39 @@ async def get_current_instructions():
         logger.error(f"❌ Ошибка получения инструкций: {e}")
         return {"status": "error", "error": str(e)}
 
+@app.post("/admin/test-response")
+async def test_bot_response(request: Request):
+    """Тестовый ответ бота для проверки актуальности инструкций"""
+    try:
+        if not AI_ENABLED or not agent:
+            return {
+                "status": "error",
+                "error": "AI Agent не инициализирован"
+            }
+        
+        # Получаем тестовое сообщение из запроса
+        data = await request.json()
+        test_message = data.get("message", "Представьтесь, пожалуйста")
+        
+        # Генерируем ответ
+        response = await agent.generate_response(
+            user_message=test_message,
+            session_id="test_admin_session",
+            user_name="Admin"
+        )
+        
+        return {
+            "status": "success",
+            "test_message": test_message,
+            "bot_response": response,
+            "system_instruction_used": agent.instruction.get("system_instruction", "")[:200] + "...",
+            "instruction_timestamp": agent.instruction.get("last_updated", "неизвестно")
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка тестового ответа: {e}")
+        return {"status": "error", "error": str(e)}
+
 @app.on_event("startup")
 async def startup():
     """Запуск сервера"""
