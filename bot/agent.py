@@ -13,6 +13,7 @@ from .config import (
     INSTRUCTION_FILE, OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENAI_MODEL, 
     ANTHROPIC_MODEL, ZEP_API_KEY, VOICE_ENABLED, TELEGRAM_BOT_TOKEN
 )
+from .voice.voice_service import VoiceService
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -63,6 +64,24 @@ class TextilProAgent:
                 print("⚠️ ZEP_API_KEY не установлен, используется локальная память")
             else:
                 print(f"⚠️ ZEP_API_KEY имеет значение 'test_key', используется локальная память")
+        
+        # Инициализируем голосовой сервис
+        if VOICE_ENABLED and OPENAI_API_KEY and TELEGRAM_BOT_TOKEN:
+            try:
+                self.voice_service = VoiceService(TELEGRAM_BOT_TOKEN, OPENAI_API_KEY)
+                print("✅ Голосовой сервис инициализирован")
+            except Exception as e:
+                print(f"❌ Ошибка инициализации голосового сервиса: {e}")
+                self.voice_service = None
+        else:
+            self.voice_service = None
+            if not VOICE_ENABLED:
+                print("⚠️ Голосовые сообщения отключены в конфигурации")
+            elif not OPENAI_API_KEY:
+                print("⚠️ OPENAI_API_KEY отсутствует - голосовые сообщения недоступны")
+            elif not TELEGRAM_BOT_TOKEN:
+                print("⚠️ TELEGRAM_BOT_TOKEN отсутствует - голосовые сообщения недоступны")
+        
         self.instruction = self._load_instruction()
         self.user_sessions = {}  # Резервное хранение сессий в памяти
     
