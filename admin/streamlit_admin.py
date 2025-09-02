@@ -21,39 +21,25 @@ def load_instruction():
 
 
 def save_instruction(instruction_data):
+    """Сохранение инструкций локально (только для совместимости)
+    
+    Примечание: Streamlit Cloud изолирован от локальной файловой системы,
+    поэтому реальные обновления идут через API на бот напрямую.
+    """
     try:
         instruction_data["last_updated"] = datetime.now().isoformat()
-        with open(INSTRUCTION_FILE, 'w', encoding='utf-8') as f:
-            json.dump(instruction_data, f, ensure_ascii=False, indent=2)
         
-        # Автоматическое обновление GitHub
+        # Пытаемся сохранить локально, но это не критично для работы
         try:
-            import subprocess
-            import os
-            
-            # Переходим в корневую директорию проекта
-            project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            
-            # Git команды для автопуша
-            subprocess.run(['git', 'add', 'data/instruction.json'], 
-                          cwd=project_dir, capture_output=True)
-            
-            commit_msg = f"Admin: Обновлены инструкции бота ({datetime.now().strftime('%H:%M')})\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
-            
-            subprocess.run(['git', 'commit', '-m', commit_msg], 
-                          cwd=project_dir, capture_output=True)
-            
-            subprocess.run(['git', 'push', 'origin', 'main'], 
-                          cwd=project_dir, capture_output=True)
-            
-            print("✅ Изменения автоматически отправлены в GitHub")
-            
-        except Exception as git_error:
-            print(f"⚠️ Не удалось обновить GitHub: {git_error}")
-            # Продолжаем работу даже если git не сработал
+            with open(INSTRUCTION_FILE, 'w', encoding='utf-8') as f:
+                json.dump(instruction_data, f, ensure_ascii=False, indent=2)
+            print("✅ Локальное сохранение успешно")
+        except Exception as local_error:
+            print(f"⚠️ Локальное сохранение недоступно в Streamlit Cloud: {local_error}")
         
         return True
     except Exception as e:
+        print(f"❌ Ошибка сохранения: {e}")
         return False
 
 
@@ -230,11 +216,7 @@ def main():
         }
         
         try:
-            # Сохраняем локально (для backup) + GitHub push
-            if save_instruction(new_instruction_data.copy()):
-                st.success("✅ Инструкции сохранены локально!")
-            
-            # Главное - отправляем напрямую на бот
+            # Отправляем напрямую на бот (главный способ)
             import requests
             response = requests.post(
                 f"{BOT_URL}/admin/update-instructions", 
