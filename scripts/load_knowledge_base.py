@@ -164,14 +164,21 @@ class KnowledgeBaseLoader:
                         }
                     }
                     
-                    # Создаём сессию для каждого типа контента
-                    session_id = f"knowledge_{chunk.category}_{chunk.source}_{i}"
-                    
                     # Добавляем как данные графа знаний
-                    # В Zep v2 используется add_data метод для Knowledge Graph
+                    # В Zep v2 используется правильный API для Knowledge Graph
+                    # Включаем метаданные в сам текст для поиска
+                    enriched_content = f"""[{chunk.category.upper()}] {chunk.title}
+
+{chunk.content}
+
+Источник: {chunk.source}
+Категория: {chunk.category}"""
+                    
                     await self.zep_client.graph.add(
-                        session_id=session_id,
-                        data=json.dumps(document_data)
+                        user_id="sales_knowledge_bot",
+                        type="text",
+                        data=enriched_content,
+                        source_description=f"{chunk.category}: {chunk.title[:100]}..."
                     )
                     
                     logger.info(f"✅ Загружен чанк {i+1}/{len(chunks)}: {chunk.title[:50]}...")
@@ -195,6 +202,7 @@ class KnowledgeBaseLoader:
         try:
             # Используем поиск по графу знаний
             results = await self.zep_client.graph.search(
+                user_id="sales_knowledge_bot",
                 query=query,
                 limit=5
             )

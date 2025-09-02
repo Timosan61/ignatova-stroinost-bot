@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 # Добавляем путь к проекту
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from bot.agent import ConversationAgent
+from bot.agent import TextilProAgent
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -27,7 +27,7 @@ async def test_knowledge_search():
     print("🧪 Тестируем систему поиска в базе знаний...")
     
     # Создаём агента
-    agent = ConversationAgent()
+    agent = TextilProAgent()
     
     if not agent.zep_client:
         print("❌ Zep клиент не инициализирован. Проверьте ZEP_API_KEY.")

@@ -115,11 +115,54 @@ class TextilProAgent:
         try:
             logger.info(f"🔍 Ищем в базе знаний: '{query[:50]}...'")
             
-            # Используем поиск по графу знаний Zep
-            results = await self.zep_client.graph.search(
-                query=query,
-                limit=limit
-            )
+            # Ищем по всем категориям знаний в Memory
+            results = []
+            
+            categories = [
+                'training_summary', 'training_faq', 'scripts', 'objections', 
+                'faq', 'techniques', 'sales_methodology', 'general'
+            ]
+            
+            for category in categories:
+                # Ищем во всех подсессиях этой категории
+                for session_part in range(1, 15):  # Максимум 15 подсессий на категорию
+                    try:
+                        session_id = f"knowledge_{category}_session_{session_part}"
+                        
+                        # Получаем всю память сессии (так как search deprecated)
+                        memory = await self.zep_client.memory.get(session_id=session_id)
+                        
+                        if memory and memory.messages:
+                            # Локально фильтруем сообщения по запросу
+                            query_lower = query.lower()
+                            found_messages = []
+                            
+                            for msg in memory.messages:
+                                if msg.role_type == 'assistant' and msg.content:
+                                    # Проверяем содержит ли сообщение запрос
+                                    content_lower = msg.content.lower()
+                                    if any(word in content_lower for word in query_lower.split()):
+                                        found_messages.append(msg.content)
+                                        if len(found_messages) >= 2:  # Максимум 2 результата с сессии
+                                            break
+                            
+                            results.extend(found_messages)
+                            
+                            # Ограничиваем общее количество результатов
+                            if len(results) >= limit:
+                                break
+                                    
+                        if len(results) >= limit:
+                            break
+                            
+                    except Exception as e:
+                        # Если сессии не существует, прерываем поиск по этой категории
+                        if "404" in str(e):
+                            break
+                        continue
+                
+                if len(results) >= limit:
+                    break
             
             if not results:
                 logger.info("📭 В базе знаний ничего не найдено")
