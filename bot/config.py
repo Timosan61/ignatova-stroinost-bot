@@ -16,7 +16,7 @@ OPENAI_MODEL = 'gpt-4o'
 ANTHROPIC_MODEL = 'claude-3-5-sonnet-20241022'
 
 # Настройки голосовых сообщений
-VOICE_ENABLED = bool(OPENAI_API_KEY)  # Голосовые сообщения включены если есть OpenAI ключ
+VOICE_ENABLED = os.getenv('VOICE_ENABLED', 'false').lower() in ('true', '1', 'yes')
 VOICE_LANGUAGE = 'ru'  # Язык по умолчанию для транскрипции
 VOICE_MAX_DURATION = 600  # 10 минут максимальная длительность
 VOICE_MAX_SIZE_MB = 25  # 25MB максимальный размер файла
@@ -33,6 +33,9 @@ if not ZEP_API_KEY:
 
 # Информация о статусе голосовых сообщений
 if VOICE_ENABLED:
-    print("✅ Голосовые сообщения включены (OpenAI API доступен)")
+    if OPENAI_API_KEY:
+        print("✅ Голосовые сообщения включены (VOICE_ENABLED=true, OpenAI API доступен)")
+    else:
+        print("⚠️ Голосовые сообщения включены, но OpenAI API недоступен")
 else:
-    print("❌ Голосовые сообщения отключены (OpenAI API недоступен)")
+    print("❌ Голосовые сообщения отключены (VOICE_ENABLED=false)")
