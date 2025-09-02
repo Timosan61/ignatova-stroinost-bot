@@ -25,6 +25,33 @@ def save_instruction(instruction_data):
         instruction_data["last_updated"] = datetime.now().isoformat()
         with open(INSTRUCTION_FILE, 'w', encoding='utf-8') as f:
             json.dump(instruction_data, f, ensure_ascii=False, indent=2)
+        
+        # Автоматическое обновление GitHub
+        try:
+            import subprocess
+            import os
+            
+            # Переходим в корневую директорию проекта
+            project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            
+            # Git команды для автопуша
+            subprocess.run(['git', 'add', 'data/instruction.json'], 
+                          cwd=project_dir, capture_output=True)
+            
+            commit_msg = f"Admin: Обновлены инструкции бота ({datetime.now().strftime('%H:%M')})\n\n🤖 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
+            
+            subprocess.run(['git', 'commit', '-m', commit_msg], 
+                          cwd=project_dir, capture_output=True)
+            
+            subprocess.run(['git', 'push', 'origin', 'main'], 
+                          cwd=project_dir, capture_output=True)
+            
+            print("✅ Изменения автоматически отправлены в GitHub")
+            
+        except Exception as git_error:
+            print(f"⚠️ Не удалось обновить GitHub: {git_error}")
+            # Продолжаем работу даже если git не сработал
+        
         return True
     except Exception as e:
         return False
