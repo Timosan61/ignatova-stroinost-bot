@@ -181,6 +181,22 @@ async def health_check():
         }
     }
 
+@app.get("/debug/env")
+async def debug_env():
+    """DEBUG: Проверка переменных окружения"""
+    return {
+        "env_vars": {
+            "TELEGRAM_BOT_TOKEN": "✅ Set" if os.getenv('TELEGRAM_BOT_TOKEN') else "❌ Missing",
+            "OPENAI_API_KEY": "✅ Set" if os.getenv('OPENAI_API_KEY') else "❌ Missing", 
+            "ANTHROPIC_API_KEY": "✅ Set" if os.getenv('ANTHROPIC_API_KEY') else "❌ Missing",
+            "ZEP_API_KEY": "✅ Set" if os.getenv('ZEP_API_KEY') else "❌ Missing",
+            "WEBHOOK_SECRET_TOKEN": "✅ Set" if os.getenv('WEBHOOK_SECRET_TOKEN') else "❌ Missing"
+        },
+        "ai_enabled": AI_ENABLED,
+        "agent_initialized": bool(agent),
+        "instruction_file_exists": os.path.exists("data/instruction.json")
+    }
+
 # Webhook управление
 @app.get("/webhook/set")
 async def set_webhook():
