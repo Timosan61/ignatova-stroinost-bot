@@ -179,17 +179,40 @@ def main():
             if st.button("🔄 Применить изменения мгновенно", use_container_width=True):
                 try:
                     import requests
-                    response = requests.post(f"{BOT_URL}/admin/reload-instructions", timeout=10)
+                    
+                    # Подготавливаем данные для отправки
+                    update_data = {
+                        "system_instruction": system_instruction,
+                        "welcome_message": welcome_message,
+                        "settings": {
+                            "voice_enabled": voice_enabled,
+                            "memory_enabled": memory_enabled,
+                            "debug_mode": debug_mode,
+                            "max_memory_messages": max_memory_messages,
+                            "response_temperature": response_temperature
+                        }
+                    }
+                    
+                    # Отправляем через новый API endpoint
+                    response = requests.post(
+                        f"{BOT_URL}/admin/update-instructions", 
+                        json=update_data,
+                        headers={"Content-Type": "application/json"},
+                        timeout=15
+                    )
+                    
                     if response.status_code == 200:
                         data = response.json()
                         if data.get("status") == "success":
                             st.success("✅ Изменения применены мгновенно! Бот использует новые инструкции.")
+                            st.info(f"🕐 Обновлено: {data.get('new_updated', 'неизвестно')}")
                         else:
                             st.error(f"❌ Ошибка: {data.get('error', 'Неизвестная ошибка')}")
                     else:
-                        st.warning("⚠️ Не удается подключиться к боту - изменения применятся при перезапуске")
+                        st.error(f"❌ HTTP {response.status_code}: {response.text}")
+                        
                 except Exception as e:
-                    st.warning(f"⚠️ Не удается подключиться к боту - изменения применятся при перезапуске")
+                    st.error(f"❌ Ошибка подключения к боту: {e}")
     
     st.markdown("---")
     
@@ -203,31 +226,36 @@ def main():
                 "debug_mode": debug_mode,
                 "max_memory_messages": max_memory_messages,
                 "response_temperature": response_temperature
-            },
-            "last_updated": datetime.now().isoformat()
+            }
         }
         
-        if save_instruction(new_instruction_data):
-            st.success("✅ Инструкции успешно сохранены!")
+        try:
+            # Сохраняем локально (для backup) + GitHub push
+            if save_instruction(new_instruction_data.copy()):
+                st.success("✅ Инструкции сохранены локально!")
             
-            # Попытка применить изменения мгновенно
-            try:
-                import requests
-                response = requests.post(f"{BOT_URL}/admin/reload-instructions", timeout=5)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get("status") == "success":
-                        st.info("⚡ Изменения применены мгновенно! Бот использует новые инструкции.")
-                    else:
-                        st.warning("⚠️ Сохранено, но не удалось обновить бота - изменения применятся при перезапуске")
+            # Главное - отправляем напрямую на бот
+            import requests
+            response = requests.post(
+                f"{BOT_URL}/admin/update-instructions", 
+                json=new_instruction_data,
+                headers={"Content-Type": "application/json"},
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "success":
+                    st.success("🎉 Изменения применены мгновенно! Бот использует новые инструкции.")
+                    st.info(f"🕐 Обновлено: {data.get('new_updated', 'неизвестно')}")
+                    st.balloons()
                 else:
-                    st.warning("⚠️ Сохранено, но не удалось обновить бота - изменения применятся при перезапуске")
-            except:
-                st.warning("⚠️ Сохранено, но не удалось обновить бота - изменения применятся при перезапуске")
-            
-            st.balloons()
-        else:
-            st.error("❌ Ошибка при сохранении инструкций")
+                    st.error(f"❌ Ошибка применения: {data.get('error', 'Неизвестная ошибка')}")
+            else:
+                st.error(f"❌ HTTP {response.status_code}: {response.text}")
+                
+        except Exception as e:
+            st.error(f"❌ Ошибка: {e}")
 
 
 if __name__ == "__main__":

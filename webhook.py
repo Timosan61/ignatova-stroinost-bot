@@ -966,6 +966,55 @@ async def reload_instructions():
         logger.error(f"❌ Ошибка перезагрузки промпта: {e}")
         return {"status": "error", "error": str(e)}
 
+@app.post("/admin/update-instructions")
+async def update_instructions(request: Request):
+    """Обновить инструкции напрямую через API"""
+    try:
+        if not AI_ENABLED or not agent:
+            return {
+                "status": "error",
+                "error": "AI Agent не инициализирован"
+            }
+        
+        # Получаем данные из запроса
+        instruction_data = await request.json()
+        
+        # Проверяем обязательные поля
+        required_fields = ["system_instruction", "welcome_message", "settings"]
+        for field in required_fields:
+            if field not in instruction_data:
+                return {
+                    "status": "error",
+                    "error": f"Отсутствует обязательное поле: {field}"
+                }
+        
+        # Добавляем время обновления
+        instruction_data["last_updated"] = datetime.now().isoformat()
+        
+        # Сохраняем в файл
+        import json
+        with open(agent.instruction_file, 'w', encoding='utf-8') as f:
+            json.dump(instruction_data, f, ensure_ascii=False, indent=2)
+        
+        # Перезагружаем в агенте
+        old_updated = agent.instruction.get('last_updated', 'неизвестно')
+        agent.reload_instruction()
+        new_updated = agent.instruction.get('last_updated', 'неизвестно')
+        
+        logger.info(f"✅ Инструкции обновлены через API: {old_updated} -> {new_updated}")
+        
+        return {
+            "status": "success",
+            "changed": True,
+            "old_updated": old_updated,
+            "new_updated": new_updated,
+            "message": "Инструкции успешно обновлены через API"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка обновления инструкций через API: {e}")
+        return {"status": "error", "error": str(e)}
+
 @app.on_event("startup")
 async def startup():
     """Запуск сервера"""
