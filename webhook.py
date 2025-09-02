@@ -497,6 +497,16 @@ async def process_webhook(request: Request):
                     try:
                         session_id = f"user_{user_id}"
                         # Создаем пользователя в Zep если нужно
+                        # Проверяем актуальность инструкций перед генерацией ответа
+                        try:
+                            fresh_instruction = agent._load_instruction()
+                            if fresh_instruction.get('last_updated') != agent.instruction.get('last_updated'):
+                                logger.info(f"🔄 Обнаружены обновленные инструкции, перезагружаем...")
+                                agent.instruction = fresh_instruction
+                                logger.info(f"✅ Инструкции обновлены с {agent.instruction.get('last_updated')}")
+                        except Exception as refresh_error:
+                            logger.warning(f"⚠️ Ошибка проверки актуальности инструкций: {refresh_error}")
+                        
                         if agent.zep_client:
                             await agent.ensure_user_exists(f"user_{user_id}", {
                                 'first_name': user_name,
@@ -625,6 +635,16 @@ async def process_webhook(request: Request):
                         
                         # === ОБРАБОТКА ТЕКСТОВЫХ BUSINESS СООБЩЕНИЙ (включая транскрибированные) ===
                         if text:  # Обрабатываем текст (в том числе транскрибированный из голоса)
+                            # Проверяем актуальность инструкций перед генерацией ответа
+                            try:
+                                fresh_instruction = agent._load_instruction()
+                                if fresh_instruction.get('last_updated') != agent.instruction.get('last_updated'):
+                                    logger.info(f"🔄 Business: Обнаружены обновленные инструкции, перезагружаем...")
+                                    agent.instruction = fresh_instruction
+                                    logger.info(f"✅ Business: Инструкции обновлены с {agent.instruction.get('last_updated')}")
+                            except Exception as refresh_error:
+                                logger.warning(f"⚠️ Business: Ошибка проверки актуальности инструкций: {refresh_error}")
+                            
                             response = await agent.generate_response(text, session_id, user_name)
                             logger.info(f"✅ AI ответ сгенерирован: {response[:100]}...")
                     else:
