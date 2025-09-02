@@ -106,6 +106,64 @@ class TextilProAgent:
             logger.info("📝 Инструкции перезагружены (без изменений)")
             print("📝 Инструкции перезагружены (без изменений)")
     
+    async def search_knowledge_base(self, query: str, limit: int = 5) -> str:
+        """Поиск релевантной информации в базе знаний через Zep Knowledge Graph"""
+        if not self.zep_client:
+            logger.info("⚠️ Zep недоступен, пропускаем поиск в базе знаний")
+            return ""
+        
+        try:
+            logger.info(f"🔍 Ищем в базе знаний: '{query[:50]}...'")
+            
+            # Используем поиск по графу знаний Zep
+            results = await self.zep_client.graph.search(
+                query=query,
+                limit=limit
+            )
+            
+            if not results:
+                logger.info("📭 В базе знаний ничего не найдено")
+                return ""
+            
+            # Формируем контекст из найденных результатов
+            context_parts = []
+            for i, result in enumerate(results):
+                try:
+                    # Извлекаем содержимое из результата поиска
+                    if hasattr(result, 'content'):
+                        content = result.content
+                    elif hasattr(result, 'data'):
+                        content = result.data
+                    elif isinstance(result, dict):
+                        content = result.get('content', result.get('data', str(result)))
+                    else:
+                        content = str(result)
+                    
+                    # Ограничиваем длину каждого результата
+                    if len(content) > 800:
+                        content = content[:800] + "..."
+                    
+                    context_parts.append(f"[Источник {i+1}] {content}")
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка обработки результата {i+1}: {e}")
+                    continue
+            
+            context = "\n\n".join(context_parts)
+            
+            # Ограничиваем общий размер контекста
+            max_context_chars = 3000
+            if len(context) > max_context_chars:
+                context = context[:max_context_chars] + "\n\n[...контекст обрезан...]"
+            
+            logger.info(f"✅ Найдено {len(results)} релевантных фрагментов ({len(context)} символов)")
+            return context
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка поиска в базе знаний: {e}")
+            print(f"❌ Ошибка поиска в базе знаний: {e}")
+            return ""
+    
     async def add_to_zep_memory(self, session_id: str, user_message: str, bot_response: str, user_name: str = None):
         """Добавляет сообщения в Zep Memory с именами пользователей"""
         if not self.zep_client:
@@ -265,9 +323,16 @@ class TextilProAgent:
         try:
             system_prompt = self.instruction.get("system_instruction", "")
             
+            # Ищем релевантную информацию в базе знаний
+            knowledge_context = await self.search_knowledge_base(user_message, limit=3)
+            
             # Пытаемся получить контекст из Zep Memory
             zep_context = await self.get_zep_memory_context(session_id)
             zep_history = await self.get_zep_recent_messages(session_id)
+            
+            # Добавляем контекст из базы знаний
+            if knowledge_context:
+                system_prompt += f"\n\n=== РЕЛЕВАНТНАЯ ИНФОРМАЦИЯ ИЗ БАЗЫ ЗНАНИЙ ===\n{knowledge_context}\n=== КОНЕЦ БАЗЫ ЗНАНИЙ ==="
             
             # Добавляем контекст и историю в системный промпт
             if zep_context:
