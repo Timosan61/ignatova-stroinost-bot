@@ -23,5 +23,5 @@ RUN mkdir -p /app/logs
 # Устанавливаем переменную окружения для Python
 ENV PYTHONPATH=/app
 
-# Запускаем бота
-CMD ["python", "-m", "uvicorn", "webhook:app", "--host", "0.0.0.0", "--port", "$PORT"]
+# Запускаем бота (переменная PORT будет подставлена Railway автоматически)
+CMD python -m uvicorn webhook:app --host 0.0.0.0 --port ${PORT:-8000}
