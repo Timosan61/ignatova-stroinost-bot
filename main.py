@@ -111,7 +111,7 @@ async def root():
         "ai_status": "✅ ENABLED" if AI_ENABLED else "❌ DISABLED",
         "openai_configured": bool(agent and agent.openai_client) if AI_ENABLED else False,
         "anthropic_configured": bool(agent and agent.anthropic_client) if AI_ENABLED else False,
-        "voice_status": "✅ ENABLED" if AI_ENABLED and agent and hasattr(agent, 'voice_service') else "❌ DISABLED",
+        "voice_status": "✅ ENABLED" if AI_ENABLED and agent and hasattr(agent, 'voice_service') and agent.voice_service else "❌ DISABLED",
         "zep_status": "✅ ENABLED" if AI_ENABLED and agent and agent.zep_client else "❌ DISABLED",
         "endpoints": {
             "webhook_info": "/webhook/info",
