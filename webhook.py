@@ -1016,6 +1016,26 @@ async def update_instructions(request: Request):
         logger.error(f"❌ Ошибка обновления инструкций через API: {e}")
         return {"status": "error", "error": str(e)}
 
+@app.get("/admin/get-instructions")
+async def get_current_instructions():
+    """Получить текущие инструкции из бота"""
+    try:
+        if not AI_ENABLED or not agent:
+            return {
+                "status": "error",
+                "error": "AI Agent не инициализирован"
+            }
+        
+        return {
+            "status": "success",
+            "instructions": agent.instruction,
+            "loaded_at": agent.instruction.get('last_updated', 'неизвестно')
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения инструкций: {e}")
+        return {"status": "error", "error": str(e)}
+
 @app.on_event("startup")
 async def startup():
     """Запуск сервера"""
