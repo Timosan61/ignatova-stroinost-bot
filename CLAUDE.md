@@ -195,6 +195,149 @@ logger.info("✅ Neo4j indices and constraints created")
 
 ---
 
+### 🔍 DEBUG: Диагностический инструментарий для Neo4j (13 ноября, поздний вечер)
+
+**Проблема:** После исправления lazy initialization (коммит e4bac7d) Graphiti service инициализируется успешно, но Neo4j граф остаётся **пустым** несмотря на "успешную" загрузку 346 entities.
+
+**Симптомы:**
+- `/api/admin/load_knowledge` завершается с `"progress": 346/346` (100%)
+- Нет ошибок в логах
+- `/api/admin/stats` показывает `0 nodes, 0 relationships, 0 episodes`
+- **Silent failure** - самый опасный тип ошибки
+
+**Гипотезы:**
+1. `_ensure_indices()` не вызывается или возвращает False
+2. `build_indices_and_constraints()` выполняется но не создаёт индексы
+3. Episodes добавляются но не коммитятся в Neo4j
+4. Проблема совместимости Graphiti/Neo4j Aura
+
+**Решение (коммит 0dd0d81): Диагностический инструментарий**
+
+#### 1. Улучшенное логирование в `_ensure_indices()`:
+
+```python
+# bot/services/graphiti_service.py:98-123
+async def _ensure_indices(self):
+    logger.info(f"🔍 _ensure_indices() called. Current state: _indices_built={self._indices_built}")
+
+    if self._indices_built:
+        logger.info("✅ Indices already built, skipping")
+        return True
+
+    try:
+        logger.info("🔨 Building Neo4j indices and constraints...")
+        logger.info(f"   Neo4j URI: {NEO4J_URI}")
+        logger.info(f"   Calling graphiti_client.build_indices_and_constraints()...")
+
+        await self.graphiti_client.build_indices_and_constraints()
+
+        self._indices_built = True
+        logger.info("✅ Neo4j indices and constraints created successfully")
+        logger.info(f"   _indices_built flag set to: {self._indices_built}")
+
+        # Проверяем что индексы действительно созданы
+        indices_check = await self._verify_indices()
+        logger.info(f"   Indices verification: {indices_check}")
+
+        return True
+    except Exception as e:
+        logger.error(f"❌ Failed to build indices: {type(e).__name__}: {e}")
+        logger.exception("Full traceback:")
+        return False
+```
+
+#### 2. Метод `_verify_indices()` для проверки индексов:
+
+```python
+# bot/services/graphiti_service.py:125-154
+async def _verify_indices(self) -> Dict[str, Any]:
+    """Проверить что индексы и constraints действительно созданы в Neo4j"""
+    try:
+        with self.neo4j_driver.session() as session:
+            # Получаем список индексов
+            indices_result = session.run("SHOW INDEXES")
+            indices = [record.data() for record in indices_result]
+
+            # Получаем список constraints
+            constraints_result = session.run("SHOW CONSTRAINTS")
+            constraints = [record.data() for record in constraints_result]
+
+            return {
+                "indices_count": len(indices),
+                "constraints_count": len(constraints),
+                "indices": indices[:5],  # Первые 5 для логов
+                "constraints": constraints[:5]
+            }
+    except Exception as e:
+        logger.error(f"Failed to verify indices: {e}")
+        return {"error": str(e), "indices_count": 0, "constraints_count": 0}
+```
+
+#### 3. Debug endpoint `POST /api/admin/debug_indices`:
+
+```bash
+curl -X POST "https://ignatova-stroinost-bot-production.up.railway.app/api/admin/debug_indices"
+```
+
+**Что делает:**
+1. **Шаг 1:** Проверяет начальное состояние Neo4j + флаг `_indices_built`
+2. **Шаг 2:** Вручную вызывает `_ensure_indices()`
+3. **Шаг 3:** Проверяет созданные индексы в Neo4j (SHOW INDEXES, SHOW CONSTRAINTS)
+4. **Шаг 4:** Добавляет тестовый episode
+5. **Шаг 5:** Проверяет статистику Neo4j после episode
+6. **Шаг 6:** Сравнивает до/после (nodes_added, episodes_added)
+
+**Возможные диагнозы:**
+- ❌ `_ensure_indices()` returned False
+- ❌ No indices created in Neo4j
+- ❌ Episode add failed
+- ❌ **CRITICAL: Episode added successfully but NOT PERSISTED** (silent failure)
+- ✅ SUCCESS: Indices created and episode persisted correctly
+
+**Пример ответа:**
+
+```json
+{
+  "success": true,
+  "steps": {
+    "1_initial_state": {
+      "stats": {"total_nodes": 0, "total_episodes": 0},
+      "indices_built_flag": false
+    },
+    "2_ensure_indices": {
+      "result": true,
+      "indices_built_flag_after": true
+    },
+    "3_verify_indices": {
+      "indices_count": 5,
+      "constraints_count": 3
+    },
+    "4_add_episode": {
+      "success": true,
+      "result": "episode_id_12345"
+    },
+    "5_stats_after": {
+      "total_nodes": 15,
+      "total_episodes": 1
+    },
+    "6_comparison": {
+      "nodes_added": 15,
+      "episodes_added": 1,
+      "episode_persisted": true
+    }
+  },
+  "diagnosis": "✅ SUCCESS: Indices created and episode persisted correctly"
+}
+```
+
+**Файлы:**
+- `bot/services/graphiti_service.py` (+30 строк логов + метод `_verify_indices`)
+- `bot/api/admin_endpoints.py` (+~150 строк debug endpoint)
+
+**Следующий шаг:** Запустить debug endpoint после деплоя → выявить корневую причину пустого графа
+
+---
+
 ### 🧠 Graphiti Knowledge Graph - Полная реализация
 
 **Добавлено:** Full Graphiti Architecture для гибридного поиска по базе знаний
