@@ -59,78 +59,121 @@ class MessageHandler:
             return {"ok": False, "error": str(e)}
     
     async def handle_voice_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Обработка голосовых сообщений"""
+        """Обработка голосовых сообщений с детальной диагностикой ошибок"""
         voice = message_data.get("voice", {})
         user_id = message_data.get("from", {}).get("id")
         chat_id = message_data.get("chat", {}).get("id")
         user_name = message_data.get("from", {}).get("first_name", "Пользователь")
-        
-        logger.info(f"🎤 Голосовое сообщение от {user_name} (ID: {user_id})")
-        
+        duration = voice.get("duration", 0)
+
+        logger.info(f"🎤 Голосовое сообщение от {user_name} (ID: {user_id}), длительность: {duration}с")
+
         try:
             # Проверяем доступность голосового сервиса
             if not hasattr(self.agent, 'voice_service') or not self.agent.voice_service:
                 error_msg = "🎤 Извините, голосовые сообщения временно недоступны. Напишите текстом."
                 self.bot.send_message(chat_id, error_msg)
+                logger.warning(f"⚠️ Голосовой сервис недоступен для пользователя {user_name}")
                 return {"ok": True, "action": "voice_unavailable"}
-            
+
             # Транскрибируем голосовое сообщение
             transcription_result = await self._process_voice_transcription(voice, user_id)
-            
+
             if not transcription_result.get("success"):
-                error_msg = "🎤 Не удалось распознать голосовое сообщение. Попробуйте ещё раз или напишите текстом."
-                self.bot.send_message(chat_id, error_msg)
-                return {"ok": False, "error": "transcription_failed"}
-            
+                error_code = transcription_result.get("error", "unknown")
+                logger.error(f"❌ Ошибка транскрипции для {user_name}: {error_code}")
+
+                # Создаём детальное сообщение об ошибке в зависимости от причины
+                if error_code == "no_file_id":
+                    error_msg = "🎤 Не удалось получить голосовое сообщение от Telegram. Попробуйте отправить снова."
+                elif error_code == "too_long":
+                    error_msg = f"🎤 Голосовое сообщение слишком длинное ({duration}с). Максимум: 10 минут (600с). Разделите на несколько частей."
+                elif error_code == "too_short":
+                    error_msg = "🎤 Голосовое сообщение слишком короткое. Запишите сообщение длительностью хотя бы 1 секунду."
+                elif "timeout" in str(error_code).lower():
+                    error_msg = "🎤 Превышено время ожидания ответа от сервиса распознавания. Попробуйте ещё раз или напишите текстом."
+                elif "api" in str(error_code).lower() or "openai" in str(error_code).lower():
+                    error_msg = "🎤 Сервис распознавания речи временно недоступен. Попробуйте позже или напишите текстом."
+                else:
+                    error_msg = f"🎤 Не удалось распознать голосовое сообщение.\n\n**Причина:** {error_code}\n\nПопробуйте ещё раз или напишите текстом."
+
+                self.bot.send_message(chat_id, error_msg, parse_mode='Markdown')
+                return {"ok": False, "error": error_code}
+
             text = transcription_result.get("text", "")
             if not text.strip():
-                error_msg = "🎤 Голосовое сообщение пустое или не распознано. Попробуйте ещё раз."
+                error_msg = "🎤 Голосовое сообщение не содержит распознаваемой речи. Попробуйте записать чётче или напишите текстом."
                 self.bot.send_message(chat_id, error_msg)
+                logger.warning(f"⚠️ Пустая транскрипция для {user_name}")
                 return {"ok": True, "action": "empty_transcription"}
-            
-            logger.info(f"📝 Транскрипция: {text[:100]}...")
-            
+
+            logger.info(f"📝 Транскрипция от {user_name}: {text[:100]}...")
+
             # Обрабатываем как обычное текстовое сообщение
             text_message_data = message_data.copy()
             text_message_data["text"] = text
-            
+
             return await self.handle_regular_message(text_message_data)
-            
+
         except Exception as e:
-            logger.error(f"❌ Ошибка обработки голосового сообщения: {e}")
-            error_msg = "🎤 Произошла ошибка при обработке голосового сообщения. Попробуйте написать текстом."
-            self.bot.send_message(chat_id, error_msg)
+            logger.error(f"❌ Необработанная ошибка голосового сообщения от {user_name}: {type(e).__name__}: {e}")
+            error_msg = f"🎤 Произошла неожиданная ошибка при обработке голосового сообщения.\n\n**Тип ошибки:** {type(e).__name__}\n\nПопробуйте написать текстом."
+            self.bot.send_message(chat_id, error_msg, parse_mode='Markdown')
             return {"ok": False, "error": str(e)}
     
     async def _process_voice_transcription(self, voice_data: Dict[str, Any], user_id: int) -> Dict[str, Any]:
-        """Обработка транскрипции голосового сообщения"""
+        """Обработка транскрипции голосового сообщения с детальным логированием"""
         try:
             file_id = voice_data.get("file_id")
             duration = voice_data.get("duration", 0)
-            
+
             if not file_id:
+                logger.error(f"❌ Отсутствует file_id в голосовом сообщении")
                 return {"success": False, "error": "no_file_id"}
-            
+
+            # Минимальная длительность 1 секунда
+            if duration < 1:
+                logger.warning(f"⚠️ Слишком короткое голосовое сообщение: {duration}с")
+                return {"success": False, "error": "too_short"}
+
             # Максимальная длительность 10 минут
             if duration > 600:
+                logger.warning(f"⚠️ Слишком длинное голосовое сообщение: {duration}с (макс: 600с)")
                 return {"success": False, "error": "too_long"}
-            
+
             # Получаем файл от Telegram
+            logger.info(f"📥 Получаем файл {file_id} от Telegram...")
             file_info = self.bot.get_file(file_id)
             file_url = f"https://api.telegram.org/file/bot{self.bot.token}/{file_info.file_path}"
-            
+            logger.info(f"📥 URL файла получен: {file_info.file_path}")
+
             # Транскрибируем через голосовой сервис
+            logger.info(f"🎙️ Отправляем на транскрипцию (длительность: {duration}с)...")
             transcription = await self.agent.voice_service.transcribe_audio_url(file_url)
-            
+
+            if not transcription or not transcription.strip():
+                logger.warning(f"⚠️ Транскрипция вернула пустой текст")
+                return {"success": False, "error": "empty_transcription"}
+
+            logger.info(f"✅ Транскрипция успешна: {len(transcription)} символов")
             return {
                 "success": True,
                 "text": transcription,
                 "duration": duration
             }
-            
+
         except Exception as e:
-            logger.error(f"❌ Ошибка транскрипции: {e}")
-            return {"success": False, "error": str(e)}
+            error_type = type(e).__name__
+            error_msg = str(e)
+            logger.error(f"❌ Ошибка транскрипции ({error_type}): {error_msg}")
+
+            # Классифицируем ошибку для более понятного сообщения
+            if "timeout" in error_msg.lower():
+                return {"success": False, "error": "timeout"}
+            elif "api" in error_msg.lower() or "openai" in error_msg.lower():
+                return {"success": False, "error": "api_error"}
+            else:
+                return {"success": False, "error": f"{error_type}: {error_msg}"}
     
     def _get_fallback_response(self, text: str) -> str:
         """Простые ответы когда AI недоступен"""
