@@ -155,51 +155,78 @@ async def _run_knowledge_loading(
 
         # Импорт модулей
         try:
-            from parse_knowledge_base import KnowledgeBaseParser
             from load_knowledge_to_graphiti import GraphitiLoader
         except ImportError as e:
-            error_msg = f"Не удалось импортировать модули загрузки: {e}"
+            error_msg = f"Не удалось импортировать GraphitiLoader: {e}"
             logger.error(f"❌ {error_msg}")
             _load_status["errors"].append(error_msg)
             _load_status["is_loading"] = False
             return
 
-        # ШАГИ 1: Парсинг базы знаний
-        logger.info("📖 Шаг 1: Парсинг базы знаний...")
-        _load_status["current_tier"] = "parsing"
+        # ШАГ 1: Подсчёт entities из готовых parsed файлов
+        logger.info("📖 Шаг 1: Подсчёт entities из parsed файлов...")
+        _load_status["current_tier"] = "counting"
 
-        kb_dir = Path(__file__).parent.parent.parent / "KNOWLEDGE_BASE"
-        parser = KnowledgeBaseParser(kb_dir=kb_dir)
+        parsed_dir = Path(__file__).parent.parent.parent / "data" / "parsed_kb"
 
-        # Парсим FAQ
-        faq_file = kb_dir / "FAQ_EXTENDED.md"
-        faq_entries = parser.parse_faq(faq_file) if faq_file.exists() else []
+        # Считаем entities из parsed файлов
+        import json
+        entity_counts = {}
 
-        # Парсим уроки
-        lessons_file = kb_dir / "KNOWLEDGE_BASE_FULL.md"
-        lesson_chunks = parser.parse_lessons(lessons_file, chunk_size=800) if lessons_file.exists() else []
+        # FAQ
+        faq_file = parsed_dir / "parsed_faq.json"
+        if faq_file.exists():
+            with open(faq_file, 'r', encoding='utf-8') as f:
+                entity_counts["faq"] = len(json.load(f))
+        else:
+            entity_counts["faq"] = 0
+            logger.warning(f"⚠️ parsed_faq.json not found")
 
-        # Парсим корректировки
-        corrections_file = kb_dir / "curator_corrections_ALL.json"
-        corrections = parser.parse_corrections(corrections_file) if corrections_file.exists() else []
+        # Lessons
+        lessons_file = parsed_dir / "parsed_lessons.json"
+        if lessons_file.exists():
+            with open(lessons_file, 'r', encoding='utf-8') as f:
+                entity_counts["lessons"] = len(json.load(f))
+        else:
+            entity_counts["lessons"] = 0
+            logger.warning(f"⚠️ parsed_lessons.json not found")
 
-        # Парсим вопросы студентов
-        questions_file = kb_dir / "student_questions_ALL.json"
-        questions = parser.parse_questions(questions_file, sample_limit=500) if questions_file.exists() else []
+        # Corrections
+        corrections_file = parsed_dir / "parsed_corrections.json"
+        if corrections_file.exists():
+            with open(corrections_file, 'r', encoding='utf-8') as f:
+                entity_counts["corrections"] = len(json.load(f))
+        else:
+            entity_counts["corrections"] = 0
+            logger.warning(f"⚠️ parsed_corrections.json not found")
 
-        # Парсим brainwrites
-        brainwrites_file = kb_dir / "student_brainwrites_SAMPLE.json"
-        brainwrites = parser.parse_brainwrites(brainwrites_file, sample_limit=200) if brainwrites_file.exists() else []
+        # Questions
+        questions_file = parsed_dir / "parsed_questions.json"
+        if questions_file.exists():
+            with open(questions_file, 'r', encoding='utf-8') as f:
+                entity_counts["questions"] = len(json.load(f))
+        else:
+            entity_counts["questions"] = 0
+            logger.warning(f"⚠️ parsed_questions.json not found")
 
-        total_entities = len(faq_entries) + len(lesson_chunks) + len(corrections) + len(questions) + len(brainwrites)
+        # Brainwrites
+        brainwrites_file = parsed_dir / "parsed_brainwrites.json"
+        if brainwrites_file.exists():
+            with open(brainwrites_file, 'r', encoding='utf-8') as f:
+                entity_counts["brainwrites"] = len(json.load(f))
+        else:
+            entity_counts["brainwrites"] = 0
+            logger.warning(f"⚠️ parsed_brainwrites.json not found")
+
+        total_entities = sum(entity_counts.values())
         _load_status["total"] = total_entities
 
-        logger.info(f"✅ Парсинг завершен: {total_entities} entities")
-        logger.info(f"  - FAQ: {len(faq_entries)}")
-        logger.info(f"  - Lessons: {len(lesson_chunks)}")
-        logger.info(f"  - Corrections: {len(corrections)}")
-        logger.info(f"  - Questions: {len(questions)}")
-        logger.info(f"  - Brainwrites: {len(brainwrites)}")
+        logger.info(f"✅ Подсчёт завершен: {total_entities} entities")
+        logger.info(f"  - FAQ: {entity_counts['faq']}")
+        logger.info(f"  - Lessons: {entity_counts['lessons']}")
+        logger.info(f"  - Corrections: {entity_counts['corrections']}")
+        logger.info(f"  - Questions: {entity_counts['questions']}")
+        logger.info(f"  - Brainwrites: {entity_counts['brainwrites']}")
 
         # ШАГИ 2: Загрузка в Graphiti
         logger.info("🔄 Шаг 2: Загрузка в Neo4j/Graphiti...")
@@ -231,11 +258,11 @@ async def _run_knowledge_loading(
 
             # Обновляем прогресс
             if tier_num == 1:
-                _load_status["progress"] += len(faq_entries)
+                _load_status["progress"] += entity_counts["faq"]
             elif tier_num == 2:
-                _load_status["progress"] += len(lesson_chunks) + len(corrections)
+                _load_status["progress"] += entity_counts["lessons"] + entity_counts["corrections"]
             elif tier_num == 3:
-                _load_status["progress"] += len(questions) + len(brainwrites)
+                _load_status["progress"] += entity_counts["questions"] + entity_counts["brainwrites"]
 
         # Завершение
         _load_status["is_loading"] = False
