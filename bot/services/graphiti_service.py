@@ -73,11 +73,11 @@ class GraphitiService:
                 return
 
             # Инициализация Graphiti client
+            # Graphiti принимает позиционные аргументы: (uri, user, password)
             self.graphiti_client = Graphiti(
-                neo4j_uri=NEO4J_URI,
-                neo4j_user=NEO4J_USER,
-                neo4j_password=NEO4J_PASSWORD,
-                openai_api_key=OPENAI_API_KEY
+                NEO4J_URI,
+                NEO4J_USER,
+                NEO4J_PASSWORD
             )
             logger.info("Graphiti client initialized successfully")
 
