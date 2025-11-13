@@ -54,6 +54,17 @@ try:
 except ImportError as e:
     print(f"❌ Ошибка загрузки обработчиков: {e}")
 
+# Импорт базы данных и API endpoints
+try:
+    from bot.database import init_db, check_db_connection, DATABASE_ENABLED
+    from bot.api import router as api_router
+    print(f"✅ База данных: {'ENABLED' if DATABASE_ENABLED else 'DISABLED'}")
+    print("✅ API router загружен")
+except ImportError as e:
+    print(f"⚠️ База данных/API не доступны: {e}")
+    DATABASE_ENABLED = False
+    api_router = None
+
 # Настройки
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 WEBHOOK_SECRET_TOKEN = os.getenv("WEBHOOK_SECRET_TOKEN", "QxLZquGScgx1QmwsuUSfJU6HpyTUJoHf2XD4QisrjCk")
@@ -96,6 +107,11 @@ app = FastAPI(
     description="Telegram bot for ignatova-stroinost company",
     version="2.0.0-refactored"
 )
+
+# Регистрация API роутеров
+if api_router is not None:
+    app.include_router(api_router)
+    logger.info("✅ API endpoints зарегистрированы")
 
 # Основные endpoints
 @app.get("/")
@@ -280,7 +296,21 @@ except Exception as e:
 async def startup():
     """События при запуске"""
     logger.info("🎯 FastAPI приложение запущено")
-    
+
+    # Инициализация базы данных
+    if DATABASE_ENABLED:
+        try:
+            logger.info("🔄 Инициализация базы данных...")
+            init_db()
+            if check_db_connection():
+                logger.info("✅ База данных инициализирована и подключена")
+            else:
+                logger.warning("⚠️ База данных инициализирована, но подключение не проверено")
+        except Exception as e:
+            logger.error(f"❌ Ошибка инициализации базы данных: {e}")
+    else:
+        logger.info("⚠️ База данных отключена (DATABASE_URL не настроен)")
+
     # Автоматическая установка webhook при запуске
     webhook_url = os.getenv('WEBHOOK_URL')
     if webhook_url:
@@ -289,8 +319,8 @@ async def startup():
                 url=f"{webhook_url}/webhook",
                 secret_token=WEBHOOK_SECRET_TOKEN,
                 allowed_updates=[
-                    "message", 
-                    "business_connection", 
+                    "message",
+                    "business_connection",
                     "business_message"
                 ]
             )
