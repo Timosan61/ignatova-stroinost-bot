@@ -54,6 +54,7 @@ class GraphitiService:
         self.enabled = GRAPHITI_ENABLED and GRAPHITI_AVAILABLE
         self.graphiti_client = None
         self.neo4j_driver = None
+        self._indices_built = False  # Флаг для lazy initialization
 
         if not self.enabled:
             logger.warning("Graphiti service disabled (check GRAPHITI_ENABLED and dependencies)")
@@ -81,19 +82,31 @@ class GraphitiService:
             )
             logger.info("Graphiti client initialized successfully")
 
-            # КРИТИЧЕСКИ ВАЖНО: Создать индексы и constraints в Neo4j
-            # Без этого episodes не сохраняются!
-            logger.info("Building Neo4j indices and constraints...")
-            # Note: build_indices_and_constraints() is synchronous, not async
-            import asyncio
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(self.graphiti_client.build_indices_and_constraints())
-            loop.close()
-            logger.info("✅ Neo4j indices and constraints created")
-
         except Exception as e:
             logger.error(f"Failed to initialize Graphiti service: {e}")
             self.enabled = False
+
+    async def _ensure_indices(self):
+        """
+        Создать индексы и constraints в Neo4j (lazy initialization)
+
+        КРИТИЧЕСКИ ВАЖНО: build_indices_and_constraints() должен быть вызван
+        перед добавлением episodes. Без этого episodes не сохраняются!
+
+        Этот метод вызывается автоматически при первом add_episode().
+        """
+        if self._indices_built:
+            return True
+
+        try:
+            logger.info("🔨 Building Neo4j indices and constraints...")
+            await self.graphiti_client.build_indices_and_constraints()
+            self._indices_built = True
+            logger.info("✅ Neo4j indices and constraints created")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to build indices: {e}")
+            return False
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -184,6 +197,11 @@ class GraphitiService:
         """
         if not self.enabled:
             return False, "Graphiti service disabled"
+
+        # КРИТИЧЕСКИ ВАЖНО: Убедиться что индексы созданы (lazy initialization)
+        # Без этого episodes не сохраняются в Neo4j!
+        if not await self._ensure_indices():
+            return False, "Failed to create Neo4j indices"
 
         try:
             result = await self.graphiti_client.add_episode(
