@@ -260,6 +260,8 @@ python3 scripts/railway_monitor.py monitor --interval 10
 **Root Cause:** graphiti-core 0.23.1 требует более новые версии зависимостей:
 - `openai>=1.91.0` (было `1.54.5`)
 - `pydantic>=2.11.5` (было `2.8.2`)
+- `python-dotenv>=1.0.1` (было `1.0.0`)
+- `tenacity>=9.0.0` (streamlit 1.28.1 требовал `tenacity<9`)
 
 **Исправления:**
 ```diff
@@ -270,6 +272,12 @@ python3 scripts/railway_monitor.py monitor --interval 10
 - pydantic==2.8.2
 + pydantic>=2.11.5
 
+- python-dotenv==1.0.0
++ python-dotenv>=1.0.1
+
+- streamlit==1.28.1
++ streamlit>=1.51.0
+
 graphiti-core==0.23.1  # Updated from >=0.3.0 to fix OpenAI Unicode errors
 ```
 
@@ -278,13 +286,23 @@ graphiti-core==0.23.1  # Updated from >=0.3.0 to fix OpenAI Unicode errors
    - Commit: d077c80 - Updated openai to >=1.91.0
 2. ❌ Deployment #2 Failed: `pydantic==2.8.2` incompatible with graphiti-core 0.23.1
    - Commit: 46c7c52 - Updated pydantic to >=2.11.5
-3. ✅ Deployment #3 Expected: All dependencies compatible
+3. ❌ Deployment #3 Failed: `python-dotenv==1.0.0` incompatible with graphiti-core 0.23.1
+   - Commit: 346593b - Updated python-dotenv to >=1.0.1
+4. ❌ Deployment #4 Failed: Railway deployed stale code
+   - Commit: 38b4bbd - Empty commit to force fresh build
+5. ❌ Deployment #5 Failed: `streamlit 1.28.1` requires `tenacity<9`, but graphiti-core 0.23.1 requires `tenacity>=9.0.0`
+   - Railway Error: `The conflict is caused by: graphiti-core 0.23.1 depends on tenacity>=9.0.0, streamlit 1.28.1 depends on tenacity<9`
+   - Commit: 95a8507 - Updated streamlit to >=1.51.0
+6. ⏳ Deployment #6 In Progress: All dependencies compatible
 
-**Урок:** При обновлении major версий фреймворков (graphiti-core 0.12.4 → 0.23.1), всегда проверяйте requirements их зависимостей.
+**Урок:** При обновлении major версий фреймворков (graphiti-core 0.12.4 → 0.23.1), всегда проверяйте requirements их зависимостей. Dependency conflicts могут быть CASCADE - один конфликт ведёт к другому.
 
 **Commits:**
 - d077c80 - Fix: openai version conflict
 - 46c7c52 - Fix: pydantic version conflict
+- 346593b - Fix: python-dotenv version conflict
+- 38b4bbd - Trigger: Force fresh deployment
+- 95a8507 - Fix: streamlit/tenacity version conflict
 
 ---
 
