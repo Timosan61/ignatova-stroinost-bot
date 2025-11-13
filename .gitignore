@@ -62,3 +62,7 @@ KNOWLEDGE_BASE/*_ALL.json
 
 # Parsed knowledge base data (generated files)
 data/parsed_kb/
+
+# Neo4j and backup credentials
+.env.neo4j
+.env.backup
