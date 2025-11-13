@@ -7,7 +7,7 @@ requests==2.31.0
 openai==1.54.5
 anthropic==0.57.0
 zep-cloud==2.14.1
-graphiti-core>=0.3.0
+graphiti-core==0.23.1
 neo4j>=5.0.0
 
 # Web Framework
