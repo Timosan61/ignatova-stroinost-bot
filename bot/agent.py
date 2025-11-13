@@ -30,16 +30,25 @@ logger = logging.getLogger(__name__)
 class TextilProAgent:
     def __init__(self):
         # Инициализируем OpenAI клиент если API ключ доступен
+        print(f"🔍 OPENAI_API_KEY: {'✅ Установлен' if OPENAI_API_KEY else '❌ Отсутствует'}")
         if OPENAI_API_KEY:
+            print(f"🔍 Длина ключа: {len(OPENAI_API_KEY)} символов")
+            print(f"🔍 Префикс: {OPENAI_API_KEY[:15]}...")
             try:
+                print("🔄 Пытаемся создать AsyncOpenAI клиент...")
                 self.openai_client = openai.AsyncOpenAI(api_key=OPENAI_API_KEY)
                 print("✅ OpenAI клиент инициализирован")
+                logger.info("✅ OpenAI клиент инициализирован успешно")
             except Exception as e:
-                print(f"❌ Ошибка инициализации OpenAI: {e}")
+                print(f"❌ Ошибка инициализации OpenAI: {type(e).__name__}: {e}")
+                logger.error(f"❌ Ошибка инициализации OpenAI: {type(e).__name__}: {e}")
+                import traceback
+                traceback.print_exc()
                 self.openai_client = None
         else:
             self.openai_client = None
             print("⚠️ OpenAI API ключ не найден")
+            logger.warning("⚠️ OpenAI API ключ не найден в переменных окружения")
             
         # Инициализируем Anthropic клиент если API ключ доступен
         if ANTHROPIC_API_KEY:
