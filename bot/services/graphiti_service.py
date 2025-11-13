@@ -95,18 +95,63 @@ class GraphitiService:
 
         Этот метод вызывается автоматически при первом add_episode().
         """
+        logger.info(f"🔍 _ensure_indices() called. Current state: _indices_built={self._indices_built}")
+
         if self._indices_built:
+            logger.info("✅ Indices already built, skipping")
             return True
 
         try:
             logger.info("🔨 Building Neo4j indices and constraints...")
+            logger.info(f"   Neo4j URI: {NEO4J_URI}")
+            logger.info(f"   Calling graphiti_client.build_indices_and_constraints()...")
+
             await self.graphiti_client.build_indices_and_constraints()
+
             self._indices_built = True
-            logger.info("✅ Neo4j indices and constraints created")
+            logger.info("✅ Neo4j indices and constraints created successfully")
+            logger.info(f"   _indices_built flag set to: {self._indices_built}")
+
+            # Проверяем что индексы действительно созданы
+            indices_check = await self._verify_indices()
+            logger.info(f"   Indices verification: {indices_check}")
+
             return True
         except Exception as e:
-            logger.error(f"❌ Failed to build indices: {e}")
+            logger.error(f"❌ Failed to build indices: {type(e).__name__}: {e}")
+            logger.exception("Full traceback:")
             return False
+
+    async def _verify_indices(self) -> Dict[str, Any]:
+        """
+        Проверить что индексы и constraints действительно созданы в Neo4j
+
+        Returns:
+            Dict с информацией об индексах
+        """
+        try:
+            with self.neo4j_driver.session() as session:
+                # Получаем список индексов
+                indices_result = session.run("SHOW INDEXES")
+                indices = [record.data() for record in indices_result]
+
+                # Получаем список constraints
+                constraints_result = session.run("SHOW CONSTRAINTS")
+                constraints = [record.data() for record in constraints_result]
+
+                return {
+                    "indices_count": len(indices),
+                    "constraints_count": len(constraints),
+                    "indices": indices[:5],  # Первые 5 для логов
+                    "constraints": constraints[:5]
+                }
+        except Exception as e:
+            logger.error(f"Failed to verify indices: {e}")
+            return {
+                "error": str(e),
+                "indices_count": 0,
+                "constraints_count": 0
+            }
 
     async def health_check(self) -> Dict[str, Any]:
         """

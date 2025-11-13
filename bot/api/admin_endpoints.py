@@ -328,3 +328,123 @@ async def get_knowledge_stats():
             "success": False,
             "error": str(e)
         }
+
+
+@router.post("/debug_indices")
+async def debug_indices(
+    admin_password: Optional[str] = Header(None, alias="X-Admin-Password")
+):
+    """
+    DEBUG: Ручное тестирование создания индексов и добавления episode
+
+    Этот endpoint:
+    1. Проверяет состояние Graphiti service
+    2. Вручную вызывает _ensure_indices()
+    3. Проверяет созданные индексы в Neo4j
+    4. Добавляет тестовый episode
+    5. Проверяет что episode сохранился
+
+    Args:
+        admin_password: Админский пароль
+
+    Returns:
+        Детальная диагностическая информация
+    """
+    # Проверка пароля
+    if not verify_admin_password(admin_password):
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+
+    logger.info("🔍 DEBUG: Starting indices diagnostic...")
+
+    try:
+        from bot.services.graphiti_service import get_graphiti_service
+
+        graphiti_service = get_graphiti_service()
+
+        if not graphiti_service.enabled:
+            return {
+                "success": False,
+                "error": "Graphiti service not available",
+                "enabled": graphiti_service.enabled,
+                "graphiti_available": graphiti_service.graphiti_client is not None
+            }
+
+        result = {
+            "success": True,
+            "steps": {}
+        }
+
+        # Шаг 1: Проверка начального состояния
+        logger.info("📊 Step 1: Initial state")
+        stats_before = await graphiti_service.get_graph_stats()
+        result["steps"]["1_initial_state"] = {
+            "stats": stats_before,
+            "indices_built_flag": graphiti_service._indices_built
+        }
+
+        # Шаг 2: Ручной вызов _ensure_indices()
+        logger.info("🔨 Step 2: Manually calling _ensure_indices()")
+        indices_result = await graphiti_service._ensure_indices()
+        result["steps"]["2_ensure_indices"] = {
+            "result": indices_result,
+            "indices_built_flag_after": graphiti_service._indices_built
+        }
+
+        # Шаг 3: Проверка индексов в Neo4j
+        logger.info("🔍 Step 3: Verify indices in Neo4j")
+        indices_verification = await graphiti_service._verify_indices()
+        result["steps"]["3_verify_indices"] = indices_verification
+
+        # Шаг 4: Добавление тестового episode
+        logger.info("📝 Step 4: Add test episode")
+        test_content = "DEBUG TEST: Это тестовый episode для проверки что Neo4j индексы работают корректно."
+        success, episode_result = await graphiti_service.add_episode(
+            content=test_content,
+            episode_type="debug_test",
+            metadata={"debug": True, "timestamp": datetime.utcnow().isoformat()},
+            source_description="Debug endpoint test episode"
+        )
+
+        result["steps"]["4_add_episode"] = {
+            "success": success,
+            "result": episode_result
+        }
+
+        # Шаг 5: Проверка что episode сохранился
+        logger.info("📊 Step 5: Check stats after episode")
+        stats_after = await graphiti_service.get_graph_stats()
+        result["steps"]["5_stats_after"] = stats_after
+
+        # Шаг 6: Сравнение
+        nodes_added = stats_after.get("total_nodes", 0) - stats_before.get("total_nodes", 0)
+        episodes_added = stats_after.get("total_episodes", 0) - stats_before.get("total_episodes", 0)
+
+        result["steps"]["6_comparison"] = {
+            "nodes_added": nodes_added,
+            "episodes_added": episodes_added,
+            "episode_persisted": episodes_added > 0
+        }
+
+        # Итоговая диагностика
+        if not indices_result:
+            result["diagnosis"] = "❌ FAILED: _ensure_indices() returned False"
+        elif indices_verification.get("indices_count", 0) == 0:
+            result["diagnosis"] = "❌ FAILED: No indices created in Neo4j"
+        elif not success:
+            result["diagnosis"] = f"❌ FAILED: Episode add failed: {episode_result}"
+        elif episodes_added == 0:
+            result["diagnosis"] = "❌ CRITICAL: Episode added successfully but NOT PERSISTED to Neo4j (silent failure)"
+        else:
+            result["diagnosis"] = "✅ SUCCESS: Indices created and episode persisted correctly"
+
+        logger.info(f"🔍 DEBUG complete: {result['diagnosis']}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Debug endpoint error: {e}")
+        logger.exception("Full traceback:")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Debug failed: {str(e)}"
+        )
