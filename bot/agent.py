@@ -171,7 +171,13 @@ class TextilProAgent:
                                     # Проверяем содержит ли сообщение запрос
                                     content_lower = msg.content.lower()
                                     if any(word in content_lower for word in query_lower.split()):
-                                        found_messages.append(msg.content)
+                                        # Добавляем результат с метаданными источника
+                                        result_with_source = {
+                                            'content': msg.content,
+                                            'category': category,
+                                            'session': session_part
+                                        }
+                                        found_messages.append(result_with_source)
                                         if len(found_messages) >= 2:  # Максимум 2 результата с сессии
                                             break
                             
@@ -195,27 +201,36 @@ class TextilProAgent:
             
             if not results:
                 logger.info("📭 В базе знаний ничего не найдено")
-                return ""
+                return "", []
             
             # Формируем контекст из найденных результатов
             context_parts = []
+            sources_used = []  # Список использованных источников
+            
             for i, result in enumerate(results):
                 try:
-                    # Извлекаем содержимое из результата поиска
-                    if hasattr(result, 'content'):
+                    # Извлекаем содержимое и метаданные из результата поиска
+                    if isinstance(result, dict) and 'content' in result:
+                        content = result['content']
+                        category = result.get('category', 'unknown').upper()
+                        session = result.get('session', '?')
+                        source_info = f"{category}-сессия{session}"
+                    elif hasattr(result, 'content'):
                         content = result.content
+                        source_info = f"UNKNOWN-источник{i+1}"
                     elif hasattr(result, 'data'):
                         content = result.data
-                    elif isinstance(result, dict):
-                        content = result.get('content', result.get('data', str(result)))
+                        source_info = f"UNKNOWN-источник{i+1}"
                     else:
                         content = str(result)
+                        source_info = f"UNKNOWN-источник{i+1}"
                     
                     # Ограничиваем длину каждого результата
                     if len(content) > 800:
                         content = content[:800] + "..."
                     
-                    context_parts.append(f"[Источник {i+1}] {content}")
+                    context_parts.append(f"[{source_info}] {content}")
+                    sources_used.append(source_info)
                     
                 except Exception as e:
                     logger.warning(f"⚠️ Ошибка обработки результата {i+1}: {e}")
@@ -229,12 +244,13 @@ class TextilProAgent:
                 context = context[:max_context_chars] + "\n\n[...контекст обрезан...]"
             
             logger.info(f"✅ Найдено {len(results)} релевантных фрагментов ({len(context)} символов)")
-            return context
+            # Возвращаем кортеж (контекст, список источников)
+            return context, sources_used
             
         except Exception as e:
             logger.error(f"❌ Ошибка поиска в базе знаний: {e}")
             print(f"❌ Ошибка поиска в базе знаний: {e}")
-            return ""
+            return "", []
     
     async def add_to_zep_memory(self, session_id: str, user_message: str, bot_response: str, user_name: str = None):
         """Добавляет сообщения в Zep Memory с именами пользователей"""
@@ -394,66 +410,89 @@ class TextilProAgent:
     async def generate_response(self, user_message: str, session_id: str, user_name: str = None) -> str:
         try:
             system_prompt = self.instruction.get("system_instruction", "")
-            
+
             # Ищем релевантную информацию в базе знаний
-            knowledge_context = await self.search_knowledge_base(user_message, limit=3)
-            
+            knowledge_context, sources_used = await self.search_knowledge_base(user_message, limit=3)
+
             # Пытаемся получить контекст из Zep Memory
             zep_context = await self.get_zep_memory_context(session_id)
             zep_history = await self.get_zep_recent_messages(session_id)
-            
+
             # Добавляем контекст из базы знаний
             if knowledge_context:
                 system_prompt += f"\n\n=== РЕЛЕВАНТНАЯ ИНФОРМАЦИЯ ИЗ БАЗЫ ЗНАНИЙ ===\n{knowledge_context}\n=== КОНЕЦ БАЗЫ ЗНАНИЙ ==="
-            
+
             # Добавляем контекст и историю в системный промпт
             if zep_context:
                 system_prompt += f"\n\nКонтекст предыдущих разговоров:\n{zep_context}"
-            
+
             if zep_history:
                 system_prompt += f"\n\nПоследние сообщения:\n{zep_history}"
-            
-            
+
+
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message}
             ]
-            
+
             # Используем LLM роутер
             if self.openai_client or self.anthropic_client:
                 try:
+                    logger.info(f"🤖 Генерируем ответ для: '{user_message[:50]}...'")
+                    logger.info(f"📊 Найдено источников в базе знаний: {len(sources_used)}")
                     bot_response = await self.call_llm(messages, max_tokens=2000, temperature=0.5)
+
+                    # Добавляем источники в конец ответа если есть
+                    if sources_used and bot_response:
+                        sources_text = ", ".join(sources_used)
+                        bot_response += f"\n\n📚 **Источник:** {sources_text}"
+
+                    logger.info(f"✅ Ответ сгенерирован успешно (длина: {len(bot_response)} символов)")
+
                 except Exception as llm_error:
                     logger.error(f"❌ Ошибка LLM: {type(llm_error).__name__}: {llm_error}")
-                    print(f"❌ Детали ошибки LLM: {llm_error}")
-                    # Fallback на простые ответы если все LLM недоступны
-                    user_message_lower = user_message.lower()
-                    
-                    if any(word in user_message_lower for word in ['привет', 'hello', 'hi', 'здравствуй']):
-                        bot_response = "👋 Привет! Меня зовут Кристина, я консультант ignatova-stroinost. Чем могу помочь?"
-                    elif any(word in user_message_lower for word in ['цена', 'стоимость', 'сколько']):
-                        bot_response = "💰 Цены зависят от объема и типа услуг. Расскажите подробнее о ваших потребностях."
+                    logger.error(f"❌ Детали: {str(llm_error)}")
+                    print(f"❌ КРИТИЧЕСКАЯ ОШИБКА LLM: {llm_error}")
+
+                    # Улучшенный fallback - используем найденную информацию
+                    if knowledge_context:
+                        bot_response = f"⚠️ AI временно недоступен, но нашла информацию в базе знаний:\n\n{knowledge_context[:500]}"
+                        if sources_used:
+                            sources_text = ", ".join(sources_used)
+                            bot_response += f"\n\n📚 **Источник:** {sources_text}"
+                        bot_response += "\n\n🔄 Попробуйте задать вопрос еще раз или уточните запрос.\n\nКристина, ignatova-stroinost"
                     else:
-                        bot_response = f"Поняла ваш вопрос! Подготовлю детальный ответ специально для вас. Минуточку!\n\nКристина, ignatova-stroinost"
+                        # Простые ответы как последний fallback
+                        user_message_lower = user_message.lower()
+
+                        if any(word in user_message_lower for word in ['привет', 'hello', 'hi', 'здравствуй']):
+                            bot_response = "👋 Привет! Меня зовут Кристина, я ассистент для менеджеров по продажам. Помогаю с:\n• Подбором скриптов для клиентов\n• Обработкой возражений\n• Планированием follow-up'ов\n\nО чём хотите посоветоваться?"
+                        elif any(word in user_message_lower for word in ['цена', 'стоимость', 'сколько']):
+                            bot_response = "💰 У нас есть несколько продуктов:\n• Диагностика психотипа (бесплатно)\n• Марафон похудения (990₽)\n• 4 практики (990₽)\n• Полный курс\n\nЧто вас интересует?"
+                        else:
+                            bot_response = f"⚠️ AI временно недоступен. Попробуйте:\n• Переформулировать вопрос\n• Задать конкретный вопрос (например: 'как обработать возражение о цене?')\n• Написать позже\n\nКристина, ignatova-stroinost"
             else:
                 # Простая логика ответов если нет API ключей
                 user_message_lower = user_message.lower()
-                
+
                 if any(word in user_message_lower for word in ['привет', 'hello', 'hi', 'здравствуй']):
-                    bot_response = "👋 Привет! Меня зовут Кристина, я консультант ignatova-stroinost. Чем могу помочь?"
+                    bot_response = "👋 Привет! Меня зовут Кристина, я ассистент для менеджеров по продажам. Помогаю с:\n• Подбором скриптов для клиентов\n• Обработкой возражений\n• Планированием follow-up'ов\n\nО чём хотите посоветоваться?"
                 elif any(word in user_message_lower for word in ['цена', 'стоимость', 'сколько']):
-                    bot_response = "💰 Цены зависят от объема и типа услуг. Расскажите подробнее о ваших потребностях."
+                    bot_response = "💰 У нас есть несколько продуктов:\n• Диагностика психотипа (бесплатно)\n• Марафон похудения (990₽)\n• 4 практики (990₽)\n• Полный курс\n\nЧто вас интересует?"
                 else:
-                    bot_response = f"Поняла ваш вопрос! Подготовлю детальный ответ специально для вас. Минуточку!\n\nКристина, ignatova-stroinost"
-            
+                    bot_response = f"⚠️ AI сервис не настроен. Обратитесь к администратору для настройки OpenAI или Anthropic API.\n\nКристина, ignatova-stroinost"
+
             # Сохраняем в Zep Memory (с fallback на локальное хранилище)
             await self.add_to_zep_memory(session_id, user_message, bot_response, user_name)
-            
+
             return bot_response
-            
+
         except Exception as e:
-            print(f"Ошибка при генерации ответа: {e}")
-            return "Извините, произошла техническая ошибка. Попробуйте написать снова или обратитесь ко мне напрямую.\n\nАнастасия, Textil PRO"
+            logger.error(f"❌ Критическая ошибка при генерации ответа: {e}")
+            print(f"❌ Критическая ошибка: {e}")
+            import traceback
+            traceback.print_exc()
+            return "Извините, произошла техническая ошибка. Попробуйте написать снова или обратитесь к администратору.\n\nКристина, ignatova-stroinost"
     
     async def ensure_user_exists(self, user_id: str, user_data: Dict[str, Any] = None):
         """Создает пользователя в Zep если его еще нет"""

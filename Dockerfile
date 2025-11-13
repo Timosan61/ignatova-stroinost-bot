@@ -24,4 +24,4 @@ RUN mkdir -p /app/logs
 ENV PYTHONPATH=/app
 
 # Запускаем бота (переменная PORT будет подставлена Railway автоматически)
-CMD python -m uvicorn webhook:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
