@@ -64,9 +64,12 @@ git push origin main
 
 ### Railway API Token
 
-**Токен:** `0bc5424e-585d-4761-a401-ff7443c6bd3a`
+**Токен (обновлен 13 ноября 2025):** `74a44277-c21d-4210-b0aa-38a53d8bce94`
+**Тип:** Project Token (полный доступ к проекту)
 **Хранится в:** `.env` (переменная `RAILWAY_TOKEN`)
 **API Endpoint:** `https://backboard.railway.app/graphql/v2`
+
+**Старый токен (устарел):** `0bc5424e-585d-4761-a401-ff7443c6bd3a` - имел ограниченные права
 
 ### Обязательные проверки через API:
 
@@ -145,7 +148,7 @@ curl -s "https://backboard.railway.app/graphql/v2" \
 
 Токен уже добавлен в `.env`:
 ```bash
-RAILWAY_TOKEN=0bc5424e-585d-4761-a401-ff7443c6bd3a
+RAILWAY_TOKEN=74a44277-c21d-4210-b0aa-38a53d8bce94
 ```
 
 Использование из кода:
@@ -153,6 +156,46 @@ RAILWAY_TOKEN=0bc5424e-585d-4761-a401-ff7443c6bd3a
 import os
 railway_token = os.getenv('RAILWAY_TOKEN')
 ```
+
+### Инструменты мониторинга Railway:
+
+**1. Bash скрипт: `scripts/railway_logs.sh`**
+
+Простой bash скрипт для базовых операций:
+```bash
+# Показать последние 10 deployments
+./scripts/railway_logs.sh list
+
+# Показать логи последнего deployment
+./scripts/railway_logs.sh logs
+
+# Мониторинг логов в реальном времени
+./scripts/railway_logs.sh monitor
+
+# Показать переменные окружения
+./scripts/railway_logs.sh env
+```
+
+**2. Python скрипт: `scripts/railway_monitor.py`**
+
+Более функциональный Python скрипт:
+```bash
+# Показать последние 5 deployments
+python3 scripts/railway_monitor.py list --limit 5
+
+# Показать информацию о последнем deployment
+python3 scripts/railway_monitor.py info
+
+# Мониторинг в реальном времени
+python3 scripts/railway_monitor.py monitor --interval 10
+```
+
+**Документация:** См. `RAILWAY_API.md` для полного описания API и инструментов
+
+**Константы проекта:**
+- Project ID: `a470438c-3a6c-4952-80df-9e2c067233c6`
+- Service ID: `3eb7a84e-5693-457b-8fe1-2f4253713a0c`
+- MySQL Service ID: `d203ed15-2d73-405a-8210-4c100fbaf133`
 
 ---
 
