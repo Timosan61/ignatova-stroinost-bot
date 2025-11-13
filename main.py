@@ -184,10 +184,13 @@ async def health_check():
 @app.get("/debug/env")
 async def debug_env():
     """DEBUG: Проверка переменных окружения"""
+    openai_key = os.getenv('OPENAI_API_KEY')
     return {
         "env_vars": {
             "TELEGRAM_BOT_TOKEN": "✅ Set" if os.getenv('TELEGRAM_BOT_TOKEN') else "❌ Missing",
-            "OPENAI_API_KEY": "✅ Set" if os.getenv('OPENAI_API_KEY') else "❌ Missing", 
+            "OPENAI_API_KEY": "✅ Set" if openai_key else "❌ Missing",
+            "OPENAI_API_KEY_LENGTH": len(openai_key) if openai_key else 0,
+            "OPENAI_API_KEY_PREFIX": openai_key[:10] if openai_key else "N/A",
             "ANTHROPIC_API_KEY": "✅ Set" if os.getenv('ANTHROPIC_API_KEY') else "❌ Missing",
             "ZEP_API_KEY": "✅ Set" if os.getenv('ZEP_API_KEY') else "❌ Missing",
             "WEBHOOK_SECRET_TOKEN": "✅ Set" if os.getenv('WEBHOOK_SECRET_TOKEN') else "❌ Missing",
@@ -195,6 +198,11 @@ async def debug_env():
         },
         "ai_enabled": AI_ENABLED,
         "agent_initialized": bool(agent),
+        "agent_details": {
+            "openai_client_exists": bool(agent and agent.openai_client) if agent else False,
+            "anthropic_client_exists": bool(agent and agent.anthropic_client) if agent else False,
+            "zep_client_exists": bool(agent and agent.zep_client) if agent else False
+        },
         "instruction_file_exists": os.path.exists("data/instruction.json"),
         "voice_service_status": {
             "agent_has_voice_service": bool(agent and hasattr(agent, 'voice_service')),
