@@ -347,6 +347,116 @@ class KnowledgeBaseParser:
         logger.info(f"Parsed {len(corrections)} corrections")
         return corrections
 
+    def parse_questions(self, file_path: Path, sample_limit: int = 500) -> List[StudentQuestion]:
+        """
+        Парсинг student_questions_ALL.json
+
+        Args:
+            file_path: Путь к JSON файлу
+            sample_limit: Максимальное количество вопросов (из-за большого объема - 2636)
+
+        Returns:
+            List of StudentQuestion entities
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            total_questions = data.get("total_questions", 0)
+            logger.info(f"Parsing student questions... Total available: {total_questions}, sampling: {sample_limit}")
+
+            questions = []
+            by_category = data.get("by_category", {})
+
+            # Равномерная выборка из всех категорий
+            categories = list(by_category.keys())
+            per_category = sample_limit // len(categories) if categories else 0
+
+            for category, category_questions in by_category.items():
+                # Берем только первые N вопросов из каждой категории
+                sampled = category_questions[:per_category]
+
+                for q_data in sampled:
+                    try:
+                        question = StudentQuestion(
+                            question_id=f"q_{len(questions)+1}",
+                            question_text=q_data.get("text", "")[:2000],
+                            category=category,
+                            curator_answer="[Ответ куратора в процессе обработки]"  # Placeholder
+                        )
+                        questions.append(question)
+                    except Exception as e:
+                        logger.warning(f"Failed to parse question: {e}")
+                        continue
+
+            logger.info(f"✅ Parsed {len(questions)} student questions from {len(categories)} categories")
+            return questions
+
+        except Exception as e:
+            logger.error(f"Failed to parse student questions from {file_path}: {e}")
+            return []
+
+    def parse_brainwrites(self, file_path: Path, sample_limit: int = 200) -> List[BrainwriteExample]:
+        """
+        Парсинг student_brainwrites_SAMPLE.json
+
+        Args:
+            file_path: Путь к JSON файлу
+            sample_limit: Максимальное количество примеров
+
+        Returns:
+            List of BrainwriteExample entities
+        """
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            total_brainwrites = data.get("total_brainwrites", 0)
+            logger.info(f"Parsing brainwrites... Total available: {total_brainwrites}, sampling: {sample_limit}")
+
+            brainwrites = []
+            categories_data = data.get("categories", {})
+
+            # Равномерная выборка из категорий
+            categories = list(categories_data.keys())
+            per_category = sample_limit // len(categories) if categories else 0
+
+            for category_name, category_data in categories_data.items():
+                examples = category_data.get("examples", [])
+                sampled = examples[:per_category]
+
+                for ex_data in sampled:
+                    try:
+                        # Определяем качество по длине (длинные = более детальные)
+                        text = ex_data.get("text", "")
+                        length = len(text)
+
+                        if length > 3000:
+                            quality = "excellent"
+                        elif length > 1500:
+                            quality = "good"
+                        else:
+                            quality = "average"
+
+                        brainwrite = BrainwriteExample(
+                            brainwrite_id=f"bw_{len(brainwrites)+1}",
+                            text=text[:3000],  # Ограничим длину
+                            student_name=ex_data.get("author", "Unknown"),
+                            technique_used=category_name,
+                            quality_rating=quality
+                        )
+                        brainwrites.append(brainwrite)
+                    except Exception as e:
+                        logger.warning(f"Failed to parse brainwrite: {e}")
+                        continue
+
+            logger.info(f"✅ Parsed {len(brainwrites)} brainwrite examples from {len(categories)} categories")
+            return brainwrites
+
+        except Exception as e:
+            logger.error(f"Failed to parse brainwrites from {file_path}: {e}")
+            return []
+
     def _parse_correction_text(self, text: str) -> Tuple[str, str, str, Optional[str]]:
         """
         Извлечь структурированную информацию из текста корректировки
@@ -411,8 +521,19 @@ class KnowledgeBaseParser:
         else:
             logger.warning(f"Corrections file not found: {corrections_file}")
 
-        # TODO: 4. Parse Student Questions
-        # TODO: 5. Parse Brainwrite Examples
+        # 4. Parse Student Questions
+        questions_file = self.kb_dir / "student_questions_ALL.json"
+        if questions_file.exists():
+            results["questions"] = self.parse_questions(questions_file, sample_limit=500)
+        else:
+            logger.warning(f"Questions file not found: {questions_file}")
+
+        # 5. Parse Brainwrite Examples
+        brainwrites_file = self.kb_dir / "student_brainwrites_SAMPLE.json"
+        if brainwrites_file.exists():
+            results["brainwrites"] = self.parse_brainwrites(brainwrites_file, sample_limit=200)
+        else:
+            logger.warning(f"Brainwrites file not found: {brainwrites_file}")
 
         # Summary
         total_entities = sum(len(v) for v in results.values())

@@ -40,6 +40,8 @@ from bot.models.knowledge_entities import (
     FAQEntry,
     CourseLesson,
     CuratorCorrection,
+    StudentQuestion,
+    BrainwriteExample,
     create_episode_metadata
 )
 
@@ -232,9 +234,32 @@ class GraphitiLoader:
                 logger.warning(f"⚠️ Corrections file not found: {corrections_file}")
 
         elif tier == 3:
-            # Tier 3: Questions + Brainwrites (TODO)
+            # Tier 3: Questions + Brainwrites
             logger.info("\n💬 TIER 3: Loading Questions + Brainwrites")
-            logger.warning("⚠️ Tier 3 loading not implemented yet")
+
+            # Student Questions
+            questions_file = self.parsed_dir / "parsed_questions.json"
+            if questions_file.exists():
+                with open(questions_file, 'r', encoding='utf-8') as f:
+                    questions_data = json.load(f)
+
+                entities = [StudentQuestion(**item) for item in questions_data]
+                self.stats["total"] += len(entities)
+                await self.load_batch(entities, "Question", batch_size)
+            else:
+                logger.warning(f"⚠️ Questions file not found: {questions_file}")
+
+            # Brainwrite Examples
+            brainwrites_file = self.parsed_dir / "parsed_brainwrites.json"
+            if brainwrites_file.exists():
+                with open(brainwrites_file, 'r', encoding='utf-8') as f:
+                    brainwrites_data = json.load(f)
+
+                entities = [BrainwriteExample(**item) for item in brainwrites_data]
+                self.stats["total"] += len(entities)
+                await self.load_batch(entities, "Brainwrite", batch_size)
+            else:
+                logger.warning(f"⚠️ Brainwrites file not found: {brainwrites_file}")
 
         else:
             logger.error(f"❌ Invalid tier: {tier}. Must be 1, 2, or 3")
@@ -243,7 +268,7 @@ class GraphitiLoader:
         """Загрузить всю базу знаний (все tiers)"""
         logger.info("🚀 Loading ALL knowledge base tiers...")
 
-        for tier in [1, 2]:  # Tier 3 пока не реализован
+        for tier in [1, 2, 3]:  # Все 3 тира
             await self.load_tier(tier, batch_size)
 
         logger.info("\n✅ All tiers loaded!")
