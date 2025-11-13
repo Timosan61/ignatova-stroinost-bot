@@ -249,12 +249,21 @@ class GraphitiService:
             return False, "Failed to create Neo4j indices"
 
         try:
+            # ВАЖНО: Graphiti API изменился - metadata больше не поддерживается
+            # Передаём метаданные через source_description или имя episode
+            episode_name = f"{episode_type}_{datetime.utcnow().isoformat()}"
+
+            # Добавляем metadata в source_description если есть
+            source_desc = source_description or f"Episode type: {episode_type}"
+            if metadata:
+                metadata_str = ", ".join([f"{k}={v}" for k, v in metadata.items()])
+                source_desc += f" | Metadata: {metadata_str}"
+
             result = await self.graphiti_client.add_episode(
-                name=f"{episode_type}_{datetime.utcnow().isoformat()}",
+                name=episode_name,
                 episode_body=content,
-                source_description=source_description or f"Episode type: {episode_type}",
-                reference_time=datetime.utcnow(),
-                metadata=metadata or {}
+                source_description=source_desc,
+                reference_time=datetime.utcnow()
             )
 
             logger.info(f"Episode added successfully: {result}")
@@ -262,6 +271,7 @@ class GraphitiService:
 
         except Exception as e:
             logger.error(f"Failed to add episode: {e}")
+            logger.exception("Full traceback:")
             return False, str(e)
 
     async def search_semantic(
