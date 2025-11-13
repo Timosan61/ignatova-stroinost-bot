@@ -11,7 +11,8 @@ BOT_USERNAME = os.getenv('BOT_USERNAME')
 
 # Neo4j & Graphiti Configuration
 NEO4J_URI = os.getenv('NEO4J_URI', '')
-NEO4J_USER = os.getenv('NEO4J_USER', 'neo4j')
+# Поддержка обоих вариантов: NEO4J_USERNAME (Railway default) и NEO4J_USER
+NEO4J_USER = os.getenv('NEO4J_USERNAME') or os.getenv('NEO4J_USER', 'neo4j')
 NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', '')
 GRAPHITI_ENABLED = os.getenv('GRAPHITI_ENABLED', 'false').lower() in ('true', '1', 'yes')
 
