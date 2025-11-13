@@ -60,6 +60,132 @@ git push origin main
 
 ## Последние обновления (13 ноября 2025)
 
+### 🧠 Graphiti Knowledge Graph - Полная реализация
+
+**Добавлено:** Full Graphiti Architecture для гибридного поиска по базе знаний
+
+**Почему Graphiti:**
+- Deprecated Zep Cloud search API (больше не поддерживается)
+- Нужен semantic + full-text + graph traversal search
+- Temporal knowledge graph с bi-temporal моделью
+- Собственный контроль над данными (Neo4j Aura)
+
+#### ✅ Архитектура (Variant C - Full Graphiti):
+
+**ЭТАП 1: Инфраструктура**
+- `bot/services/graphiti_service.py` - клиент для Graphiti (350+ строк)
+  - `health_check()`, `get_graph_stats()`
+  - `add_episode()` - добавление знаний
+  - `search_semantic()` - векторный поиск
+  - `search_hybrid()` - комбинированный поиск
+- `bot/config.py` - Neo4j credentials (NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+- `scripts/test_neo4j_connection.py` - тестирование подключения
+- `docs/NEO4J_SETUP.md` - полный гайд по настройке
+- `requirements.txt` - graphiti-core>=0.3.0, neo4j>=5.0.0
+
+**ЭТАП 2: Data Modeling**
+- `bot/models/knowledge_entities.py` - 6 Pydantic схем (450+ строк):
+  - `CourseLesson` - уроки курса (с chunking)
+  - `FAQEntry` - часто задаваемые вопросы
+  - `CuratorCorrection` - корректировки куратора
+  - `BrainwriteTechnique` - техники brainwrite
+  - `StudentQuestion` - вопросы студентов
+  - `BrainwriteExample` - примеры работ
+- `scripts/parse_knowledge_base.py` - парсер MD/JSON → entities (550+ строк)
+  - FAQ_EXTENDED.md → 25 FAQ entries
+  - KNOWLEDGE_BASE_FULL.md → 149 lesson chunks (60 уроков, 800 слов/chunk)
+  - curator_corrections_ALL.json → 275 corrections
+  - **Итого:** 449 entities готовы к загрузке
+
+**ЭТАП 3: Loading System**
+- `scripts/load_knowledge_to_graphiti.py` - batch loader (320+ строк)
+  - Tiered loading: Tier 1 (FAQ), Tier 2 (Lessons+Corrections)
+  - Checkpoint system для resumable loading
+  - Exponential backoff retry logic
+  - CLI: `python load_knowledge_to_graphiti.py --tier 1 --batch-size 50`
+- `bot/api/admin_endpoints.py` - удаленное управление (335+ строк)
+  - `POST /api/admin/load_knowledge` - запуск загрузки
+  - `GET /api/admin/load_status` - прогресс загрузки
+  - `GET /api/admin/stats` - статистика Neo4j
+  - `POST /api/admin/clear_knowledge` - очистка графа
+  - Фоновая загрузка с real-time monitoring
+- `scripts/monitor_knowledge_loading.sh` - мониторинг загрузки
+
+**ЭТАП 4: Integration**
+- `bot/services/knowledge_search.py` - гибридный поиск (400+ строк)
+  - `SearchStrategy` enum: SEMANTIC, FULLTEXT, GRAPH, HYBRID, FALLBACK
+  - `SearchResult` модель с relevance scoring
+  - `route_query()` - автоматический выбор стратегии
+  - `format_context_for_llm()` - форматирование для AI
+  - Fallback к локальным MD файлам
+- `bot/agent.py` - многоуровневый fallback:
+  ```
+  1. Graphiti hybrid search (primary) - Neo4j knowledge graph
+  2. Zep Cloud search (legacy) - keyword matching
+  3. Local files (встроено в Graphiti) - MD файлы
+  ```
+
+#### 📊 Результаты:
+- **Код:** +2,891 строк
+- **Файлы:** 10 новых + 4 измененных
+- **Entities:** 449 готовы к загрузке
+- **Neo4j:** Aura Free tier (1GB, ~100-200K nodes capacity)
+
+#### 🚀 Использование:
+
+**1. Загрузка базы знаний (один раз):**
+```bash
+# Через Admin API
+curl -X POST "https://ignatova-stroinost-bot-production.up.railway.app/api/admin/load_knowledge" \
+  -H "Content-Type: application/json" \
+  -d '{"tier": null, "batch_size": 50}'
+
+# Мониторинг прогресса
+./scripts/monitor_knowledge_loading.sh
+```
+
+**2. Проверка статистики:**
+```bash
+curl "https://ignatova-stroinost-bot-production.up.railway.app/api/admin/stats"
+```
+
+**3. Работа бота:**
+- Бот автоматически использует Graphiti для поиска
+- При недоступности Graphiti → fallback к Zep
+- При недоступности Zep → fallback к локальным файлам
+- Логи показывают выбранную стратегию
+
+#### ⚙️ Railway Environment Variables:
+
+```bash
+# Neo4j Aura (обязательно)
+NEO4J_URI=neo4j+s://51b8e0bb.databases.neo4j.io
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=fLWG-zJubpul21UaKELz77ISQIPFLWk-oG06kY4JzzM
+GRAPHITI_ENABLED=true
+```
+
+#### 🔧 Преимущества новой архитектуры:
+
+| Функция | Zep Cloud (старое) | Graphiti (новое) |
+|---------|-------------------|------------------|
+| Semantic search | ❌ Deprecated | ✅ Vector embeddings |
+| Full-text search | ❌ Нет | ✅ BM25 keyword matching |
+| Graph relationships | ❌ Нет | ✅ Traversal по связям |
+| Контроль данных | ❌ Cloud-only | ✅ Свой Neo4j |
+| Стоимость | 💰 Platform fee | ✅ Neo4j Free tier |
+| Temporal model | ❌ Нет | ✅ Bi-temporal |
+| Hybrid search | ❌ Нет | ✅ Все методы |
+
+#### 📚 Документация:
+- `docs/NEO4J_SETUP.md` - настройка Neo4j Aura
+- `bot/services/knowledge_search.py` - примеры использования
+- `scripts/parse_knowledge_base.py` - как добавить новые entities
+
+**Коммиты:** 2669287, 92516c8, 67b93f0
+
+---
+
 ### 🗄️ MySQL интеграция для хранения переписок
 
 **Добавлено:** Полная система хранения всех сообщений в MySQL базе данных
