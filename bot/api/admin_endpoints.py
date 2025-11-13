@@ -183,23 +183,37 @@ async def _run_knowledge_loading(
         corrections_file = kb_dir / "curator_corrections_ALL.json"
         corrections = parser.parse_corrections(corrections_file) if corrections_file.exists() else []
 
-        total_entities = len(faq_entries) + len(lesson_chunks) + len(corrections)
+        # Парсим вопросы студентов
+        questions_file = kb_dir / "student_questions_ALL.json"
+        questions = parser.parse_questions(questions_file, sample_limit=500) if questions_file.exists() else []
+
+        # Парсим brainwrites
+        brainwrites_file = kb_dir / "student_brainwrites_SAMPLE.json"
+        brainwrites = parser.parse_brainwrites(brainwrites_file, sample_limit=200) if brainwrites_file.exists() else []
+
+        total_entities = len(faq_entries) + len(lesson_chunks) + len(corrections) + len(questions) + len(brainwrites)
         _load_status["total"] = total_entities
 
         logger.info(f"✅ Парсинг завершен: {total_entities} entities")
         logger.info(f"  - FAQ: {len(faq_entries)}")
         logger.info(f"  - Lessons: {len(lesson_chunks)}")
         logger.info(f"  - Corrections: {len(corrections)}")
+        logger.info(f"  - Questions: {len(questions)}")
+        logger.info(f"  - Brainwrites: {len(brainwrites)}")
 
         # ШАГИ 2: Загрузка в Graphiti
         logger.info("🔄 Шаг 2: Загрузка в Neo4j/Graphiti...")
 
-        loader = GraphitiLoader()
+        # Инициализируем GraphitiLoader с путями
+        parsed_dir = Path(__file__).parent.parent.parent / "data" / "parsed_kb"
+        checkpoint_file = Path(__file__).parent.parent.parent / "data" / "graphiti_checkpoint.json"
+
+        loader = GraphitiLoader(parsed_dir, checkpoint_file)
 
         # Определяем что загружать
         tiers_to_load = []
         if tier is None:
-            tiers_to_load = [1, 2]  # Загружаем все (tier 3 пока нет данных)
+            tiers_to_load = [1, 2, 3]  # Загружаем все тиры (FAQ + Lessons + Questions/Brainwrites)
         else:
             tiers_to_load = [tier]
 
@@ -220,6 +234,8 @@ async def _run_knowledge_loading(
                 _load_status["progress"] += len(faq_entries)
             elif tier_num == 2:
                 _load_status["progress"] += len(lesson_chunks) + len(corrections)
+            elif tier_num == 3:
+                _load_status["progress"] += len(questions) + len(brainwrites)
 
         # Завершение
         _load_status["is_loading"] = False
