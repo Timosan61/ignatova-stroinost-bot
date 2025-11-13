@@ -279,6 +279,47 @@ async def _run_knowledge_loading(
         _load_status["completed_at"] = datetime.utcnow().isoformat()
 
 
+@router.post("/reset_loading")
+async def reset_loading_status(
+    admin_password: Optional[str] = Header(None, alias="X-Admin-Password")
+):
+    """
+    Сбросить статус загрузки (для случаев когда загрузка зависла)
+
+    Args:
+        admin_password: Админский пароль
+
+    Returns:
+        Результат сброса
+    """
+    # Проверка пароля
+    if not verify_admin_password(admin_password):
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+
+    global _load_status
+
+    old_status = _load_status.copy()
+
+    # Сброс к начальным значениям
+    _load_status["is_loading"] = False
+    _load_status["started_at"] = None
+    _load_status["progress"] = 0
+    _load_status["total"] = 0
+    _load_status["current_tier"] = None
+    _load_status["errors"] = []
+    _load_status["completed_at"] = None
+    _load_status["stats"] = {}
+
+    logger.info("🔄 Loading status reset manually")
+
+    return {
+        "success": True,
+        "message": "Loading status reset successfully",
+        "old_status": old_status,
+        "new_status": _load_status
+    }
+
+
 @router.post("/clear_knowledge")
 async def clear_knowledge_graph(
     admin_password: Optional[str] = Header(None, alias="X-Admin-Password")
