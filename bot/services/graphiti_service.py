@@ -81,6 +81,16 @@ class GraphitiService:
             )
             logger.info("Graphiti client initialized successfully")
 
+            # КРИТИЧЕСКИ ВАЖНО: Создать индексы и constraints в Neo4j
+            # Без этого episodes не сохраняются!
+            logger.info("Building Neo4j indices and constraints...")
+            # Note: build_indices_and_constraints() is synchronous, not async
+            import asyncio
+            loop = asyncio.new_event_loop()
+            loop.run_until_complete(self.graphiti_client.build_indices_and_constraints())
+            loop.close()
+            logger.info("✅ Neo4j indices and constraints created")
+
         except Exception as e:
             logger.error(f"Failed to initialize Graphiti service: {e}")
             self.enabled = False
