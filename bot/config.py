@@ -9,6 +9,12 @@ ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
 ZEP_API_KEY = os.getenv('ZEP_API_KEY', '')
 BOT_USERNAME = os.getenv('BOT_USERNAME')
 
+# Neo4j & Graphiti Configuration
+NEO4J_URI = os.getenv('NEO4J_URI', '')
+NEO4J_USER = os.getenv('NEO4J_USER', 'neo4j')
+NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', '')
+GRAPHITI_ENABLED = os.getenv('GRAPHITI_ENABLED', 'false').lower() in ('true', '1', 'yes')
+
 # Абсолютный путь к файлу инструкций
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INSTRUCTION_FILE = os.path.join(BASE_DIR, 'data', 'instruction.json')
@@ -39,3 +45,12 @@ if VOICE_ENABLED:
         print("⚠️ Голосовые сообщения включены, но OpenAI API недоступен")
 else:
     print("❌ Голосовые сообщения отключены (VOICE_ENABLED=false)")
+
+# Информация о статусе Graphiti Knowledge Graph
+if GRAPHITI_ENABLED:
+    if NEO4J_URI and NEO4J_PASSWORD:
+        print("✅ Graphiti Knowledge Graph включен (GRAPHITI_ENABLED=true, Neo4j configured)")
+    else:
+        print("⚠️ Graphiti включен, но Neo4j не настроен (NEO4J_URI/NEO4J_PASSWORD не заданы)")
+else:
+    print("❌ Graphiti Knowledge Graph отключен (GRAPHITI_ENABLED=false)")
