@@ -23,6 +23,15 @@ except ImportError as e:
     VOICE_SERVICE_AVAILABLE = False
     print(f"⚠️ VoiceService недоступен: {e}")
 
+# Опциональный импорт Knowledge Search Service (Graphiti)
+try:
+    from .services.knowledge_search import get_knowledge_search_service
+    KNOWLEDGE_SEARCH_AVAILABLE = True
+except ImportError as e:
+    get_knowledge_search_service = None
+    KNOWLEDGE_SEARCH_AVAILABLE = False
+    logger.warning(f"⚠️ Knowledge Search Service недоступен: {e}")
+
 # Настройка логирования
 logger = logging.getLogger(__name__)
 
@@ -144,37 +153,94 @@ class TextilProAgent:
             logger.info("📝 Инструкции перезагружены (без изменений)")
             print("📝 Инструкции перезагружены (без изменений)")
     
-    async def search_knowledge_base(self, query: str, limit: int = 5) -> str:
-        """Поиск релевантной информации в базе знаний через Zep Knowledge Graph"""
+    async def search_knowledge_base(self, query: str, limit: int = 5) -> tuple:
+        """
+        Поиск релевантной информации в базе знаний
+
+        Использует многоуровневую fallback стратегию:
+        1. Graphiti hybrid search (если доступен) - Neo4j knowledge graph
+        2. Zep Cloud search (legacy метод) - keyword matching в сессиях
+        3. Local files fallback (встроено в Graphiti) - локальные MD файлы
+
+        Returns:
+            tuple: (context: str, sources: List[str])
+        """
+
+        # ====================
+        # STRATEGY 1: Graphiti Knowledge Search (PRIMARY)
+        # ====================
+        if KNOWLEDGE_SEARCH_AVAILABLE:
+            try:
+                knowledge_service = get_knowledge_search_service()
+
+                if knowledge_service.graphiti_enabled:
+                    logger.info(f"🔍 Поиск через Graphiti Knowledge Graph: '{query[:50]}...'")
+
+                    # Определяем оптимальную стратегию поиска
+                    from .services.knowledge_search import SearchStrategy
+                    strategy = knowledge_service.route_query(query)
+                    logger.info(f"🎯 Выбрана стратегия: {strategy}")
+
+                    # Выполняем поиск
+                    search_results = await knowledge_service.search(
+                        query=query,
+                        strategy=strategy,
+                        limit=limit,
+                        min_relevance=0.6
+                    )
+
+                    if search_results:
+                        # Форматируем контекст для LLM
+                        context = knowledge_service.format_context_for_llm(
+                            results=search_results,
+                            max_length=3000
+                        )
+
+                        # Извлекаем источники
+                        sources_used = [result.source for result in search_results]
+
+                        logger.info(f"✅ Graphiti: Найдено {len(search_results)} релевантных фрагментов")
+                        return context, sources_used
+                    else:
+                        logger.info("📭 Graphiti не нашел релевантных результатов, fallback к Zep...")
+                else:
+                    logger.info("⚠️ Graphiti отключен (GRAPHITI_ENABLED=false), используем Zep...")
+
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка Graphiti search, fallback к Zep: {e}")
+
+        # ====================
+        # STRATEGY 2: Zep Cloud Search (FALLBACK)
+        # ====================
         if not self.zep_client:
-            logger.info("⚠️ Zep недоступен, пропускаем поиск в базе знаний")
-            return ""
-        
+            logger.info("⚠️ Zep недоступен, возвращаем пустой результат")
+            return "", []
+
         try:
-            logger.info(f"🔍 Ищем в базе знаний: '{query[:50]}...'")
-            
+            logger.info(f"🔍 Ищем в Zep Cloud (legacy): '{query[:50]}...'")
+
             # Ищем по всем категориям знаний в Memory
             results = []
-            
+
             categories = [
-                'training_summary', 'training_faq', 'scripts', 'objections', 
+                'training_summary', 'training_faq', 'scripts', 'objections',
                 'faq', 'techniques', 'sales_methodology', 'general'
             ]
-            
+
             for category in categories:
                 # Ищем во всех подсессиях этой категории
                 for session_part in range(1, 15):  # Максимум 15 подсессий на категорию
                     try:
                         session_id = f"knowledge_{category}_session_{session_part}"
-                        
+
                         # Получаем всю память сессии (так как search deprecated)
                         memory = await self.zep_client.memory.get(session_id=session_id)
-                        
+
                         if memory and memory.messages:
                             # Локально фильтруем сообщения по запросу
                             query_lower = query.lower()
                             found_messages = []
-                            
+
                             for msg in memory.messages:
                                 if msg.role_type == 'assistant' and msg.content:
                                     # Проверяем содержит ли сообщение запрос
@@ -189,33 +255,33 @@ class TextilProAgent:
                                         found_messages.append(result_with_source)
                                         if len(found_messages) >= 2:  # Максимум 2 результата с сессии
                                             break
-                            
+
                             results.extend(found_messages)
-                            
+
                             # Ограничиваем общее количество результатов
                             if len(results) >= limit:
                                 break
-                                    
+
                         if len(results) >= limit:
                             break
-                            
+
                     except Exception as e:
                         # Если сессии не существует, прерываем поиск по этой категории
                         if "404" in str(e):
                             break
                         continue
-                
+
                 if len(results) >= limit:
                     break
-            
+
             if not results:
                 logger.info("📭 В базе знаний ничего не найдено")
                 return "", []
-            
+
             # Формируем контекст из найденных результатов
             context_parts = []
             sources_used = []  # Список использованных источников
-            
+
             for i, result in enumerate(results):
                 try:
                     # Извлекаем содержимое и метаданные из результата поиска
@@ -233,29 +299,29 @@ class TextilProAgent:
                     else:
                         content = str(result)
                         source_info = f"UNKNOWN-источник{i+1}"
-                    
+
                     # Ограничиваем длину каждого результата
                     if len(content) > 800:
                         content = content[:800] + "..."
-                    
+
                     context_parts.append(f"[{source_info}] {content}")
                     sources_used.append(source_info)
-                    
+
                 except Exception as e:
                     logger.warning(f"⚠️ Ошибка обработки результата {i+1}: {e}")
                     continue
-            
+
             context = "\n\n".join(context_parts)
-            
+
             # Ограничиваем общий размер контекста
             max_context_chars = 3000
             if len(context) > max_context_chars:
                 context = context[:max_context_chars] + "\n\n[...контекст обрезан...]"
-            
-            logger.info(f"✅ Найдено {len(results)} релевантных фрагментов ({len(context)} символов)")
+
+            logger.info(f"✅ Zep: Найдено {len(results)} релевантных фрагментов ({len(context)} символов)")
             # Возвращаем кортеж (контекст, список источников)
             return context, sources_used
-            
+
         except Exception as e:
             logger.error(f"❌ Ошибка поиска в базе знаний: {e}")
             print(f"❌ Ошибка поиска в базе знаний: {e}")
