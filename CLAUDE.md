@@ -156,6 +156,41 @@ railway_token = os.getenv('RAILWAY_TOKEN')
 
 ---
 
+## ВАЖНАЯ ЗАМЕТКА: Graphiti Dependency Conflicts (13 ноября, ночь)
+
+**Проблема:** Множественные dependency conflicts при обновлении graphiti-core до 0.23.1
+
+**Root Cause:** graphiti-core 0.23.1 требует более новые версии зависимостей:
+- `openai>=1.91.0` (было `1.54.5`)
+- `pydantic>=2.11.5` (было `2.8.2`)
+
+**Исправления:**
+```diff
+# requirements.txt
+- openai==1.54.5
++ openai>=1.91.0
+
+- pydantic==2.8.2
++ pydantic>=2.11.5
+
+graphiti-core==0.23.1  # Updated from >=0.3.0 to fix OpenAI Unicode errors
+```
+
+**Порядок исправления:**
+1. ❌ Deployment #1 Failed: `openai==1.54.5` incompatible with graphiti-core 0.23.1
+   - Commit: d077c80 - Updated openai to >=1.91.0
+2. ❌ Deployment #2 Failed: `pydantic==2.8.2` incompatible with graphiti-core 0.23.1
+   - Commit: 46c7c52 - Updated pydantic to >=2.11.5
+3. ✅ Deployment #3 Expected: All dependencies compatible
+
+**Урок:** При обновлении major версий фреймворков (graphiti-core 0.12.4 → 0.23.1), всегда проверяйте requirements их зависимостей.
+
+**Commits:**
+- d077c80 - Fix: openai version conflict
+- 46c7c52 - Fix: pydantic version conflict
+
+---
+
 ## Последние обновления (13 ноября 2025)
 
 ### 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Neo4j Indices Initialization (13 ноября, вечер)
