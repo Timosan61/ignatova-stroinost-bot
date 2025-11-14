@@ -74,6 +74,102 @@ graphiti-core==0.23.1  # Updated from >=0.3.0 to fix OpenAI Unicode errors
 
 ---
 
+## 🔧 КРИТИЧЕСКИЕ ИСПРАВЛЕНИЯ: Graphiti Loading + GPT-4o-mini (14 ноября, утро)
+
+### Проблемы обнаружены:
+
+**1. OpenAI Rate Limit Exceeded:**
+- Graphiti использовал **GPT-4o по умолчанию** (очень дорого + жёсткие rate limits)
+- Загрузка застревала: `Rate limit exceeded. Please try again later.`
+- 0 episodes сохранялись в Neo4j
+- Стоимость загрузки: $35-50 для 1,002 entities
+
+**2. Checkpoint Bug:**
+- Параметр `reset_checkpoint` в API не работал
+- Checkpoint файл не удалялся при `reset_checkpoint=True`
+- Загрузка пропускала entities из старого checkpoint (skipped)
+- Progress застревал на 25/1002
+
+### Исправления:
+
+#### ✅ 1. Переключение на GPT-4o-mini (commit 29a3d43)
+
+**Файлы:**
+- `bot/config.py` - добавлены `MODEL_NAME` и `SMALL_MODEL_NAME`
+- `bot/services/graphiti_service.py` - устанавливает env vars перед инициализацией
+
+**Код:**
+```python
+# bot/config.py:19-23
+MODEL_NAME = os.getenv('MODEL_NAME', 'gpt-4o-mini')
+SMALL_MODEL_NAME = os.getenv('SMALL_MODEL_NAME', 'gpt-4o-mini')
+
+# bot/services/graphiti_service.py:82-83
+os.environ['MODEL_NAME'] = MODEL_NAME
+os.environ['SMALL_MODEL_NAME'] = SMALL_MODEL_NAME
+```
+
+**Результат:**
+- ✅ Снижение стоимости: $35-50 → $2-3 (15-17x экономия!)
+- ✅ Нет rate limit ошибок
+- ✅ Достаточное качество для entity extraction
+
+#### ✅ 2. Исправление Checkpoint Bug (commit a388a6f)
+
+**Файл:** `bot/api/admin_endpoints.py:238-241`
+
+**Код:**
+```python
+# КРИТИЧЕСКИ ВАЖНО: Удалить checkpoint если reset_checkpoint=True
+if reset_checkpoint and checkpoint_file.exists():
+    checkpoint_file.unlink()
+    logger.info(f"🗑️ Checkpoint удалён: {checkpoint_file}")
+```
+
+**Результат:**
+- ✅ Checkpoint удаляется при `reset_checkpoint=True`
+- ✅ Загрузка начинается с entity #1
+- ✅ Progress счётчик работает корректно
+
+### Текущий статус загрузки (14 ноября, 10:40):
+
+**Параметры:**
+- **Модель:** GPT-4o-mini (17x дешевле чем GPT-4o)
+- **Entities всего:** 1,002
+- **Уже загружено:** 712 (из вчерашней загрузки)
+- **Осталось:** 290 entities
+
+**Прогресс:**
+```
+Started:  2025-11-14 10:34:07 UTC
+Progress: 25/1002 (Tier 1 завершён, Tier 2 в процессе)
+Status:   is_loading: true
+Errors:   0
+ETA:      4-6 часов (Tier 2) + 2-3 часа (Tier 3)
+```
+
+**Важно:**
+- ✅ Graphiti **сама проверяет дубликаты** - первые 712 entities пропускаются
+- ✅ После entity #712 начнут добавляться новые nodes (+290)
+- ⚠️ Progress счётчик обновляется только после завершения целого tier
+- ⚠️ Real-time мониторинг nodes через `curl https://ignatova-stroinost-bot-production.up.railway.app/api/admin/stats`
+
+**Стоимость:** ~$1-2 для оставшихся 290 entities
+
+**Мониторинг:**
+```bash
+# Проверить статус
+curl https://ignatova-stroinost-bot-production.up.railway.app/api/admin/load_status | python3 -m json.tool
+
+# Проверить Neo4j статистику
+curl https://ignatova-stroinost-bot-production.up.railway.app/api/admin/stats | python3 -m json.tool
+
+# Автоматический мониторинг (каждые 2 минуты)
+./monitor_loading.sh
+```
+
+---
+
 ## 💰 COST OPTIMIZATION: Graphiti Model Configuration (13 ноября, ночь)
 
 **Проблема:** Graphiti по умолчанию использует GPT-4o, что очень дорого для обработки knowledge base.
