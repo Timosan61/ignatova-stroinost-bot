@@ -225,12 +225,15 @@ class QdrantMigration:
                 entity = {
                     "id": f"correction_{entity_id}",
                     "entity_type": "correction",
-                    "title": correction.original_text[:100],
+                    "title": correction.student_text[:100] if correction.student_text else correction.error_type,
                     "content": correction.to_episode_content(),
                     "metadata": {
-                        "correction_type": correction.correction_type.value,
-                        "severity": correction.severity,
-                        "tags": correction.tags
+                        "error_type": correction.error_type,
+                        "related_technique": correction.related_technique,
+                        "related_lesson": correction.related_lesson,
+                        "curator_name": correction.curator_name,
+                        "student_name": correction.student_name,
+                        "has_explanation": bool(correction.explanation)
                     }
                 }
                 all_entities.append(entity)
