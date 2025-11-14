@@ -343,17 +343,21 @@ class KnowledgeSearchService:
 
         # Точные номера уроков
         if re.search(r'урок\s+\d+|lesson\s+\d+', query_lower):
+            logger.info(f"🎯 Выбрана стратегия FULLTEXT (найден паттерн 'урок N' в запросе)")
             return SearchStrategy.FULLTEXT
 
         # Концептуальные вопросы
         if any(word in query_lower for word in ["что такое", "как понять", "объясни", "в чем смысл"]):
+            logger.info(f"🎯 Выбрана стратегия SEMANTIC (концептуальный вопрос)")
             return SearchStrategy.SEMANTIC
 
         # Поиск связей
         if any(word in query_lower for word in ["похожие", "связанные", "смежные", "related"]):
+            logger.info(f"🎯 Выбрана стратегия GRAPH (поиск связей)")
             return SearchStrategy.GRAPH
 
         # Default: hybrid
+        logger.info(f"🎯 Выбрана стратегия HYBRID (default - комбинированный поиск)")
         return SearchStrategy.HYBRID
 
     def format_context_for_llm(

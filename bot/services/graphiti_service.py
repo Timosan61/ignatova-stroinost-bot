@@ -295,9 +295,10 @@ class GraphitiService:
             return []
 
         try:
+            # ВАЖНО: API Graphiti использует num_results, а не limit
             results = await self.graphiti_client.search(
                 query=query,
-                limit=limit
+                num_results=limit
             )
 
             # Фильтрация по similarity threshold
@@ -312,11 +313,11 @@ class GraphitiService:
                 if r.similarity >= min_similarity
             ]
 
-            logger.info(f"Semantic search '{query}': {len(filtered_results)} results")
+            logger.info(f"Semantic search '{query}': {len(filtered_results)} results (similarity >= {min_similarity})")
             return filtered_results
 
         except Exception as e:
-            logger.error(f"Semantic search failed: {e}")
+            logger.error(f"Semantic search failed: {type(e).__name__}: {e}")
             return []
 
     async def search_hybrid(

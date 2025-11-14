@@ -374,7 +374,9 @@ class TextilProAgent:
             system_prompt = self.instruction.get("system_instruction", "")
 
             # Ищем релевантную информацию в базе знаний
+            logger.info(f"🔎 Вызов search_knowledge_base() для запроса: '{user_message[:50]}...'")
             knowledge_context, sources_used = await self.search_knowledge_base(user_message, limit=3)
+            logger.info(f"✅ Поиск завершён: context={len(knowledge_context)} символов, sources={len(sources_used)}")
 
             # Пытаемся получить контекст из Zep Memory
             zep_context = await self.get_zep_memory_context(session_id)
@@ -382,7 +384,10 @@ class TextilProAgent:
 
             # Добавляем контекст из базы знаний
             if knowledge_context:
+                logger.info(f"✅ Добавляем контекст из базы знаний в system prompt (длина: {len(knowledge_context)} символов)")
                 system_prompt += f"\n\n=== РЕЛЕВАНТНАЯ ИНФОРМАЦИЯ ИЗ БАЗЫ ЗНАНИЙ ===\n{knowledge_context}\n=== КОНЕЦ БАЗЫ ЗНАНИЙ ==="
+            else:
+                logger.info("📭 Контекст из базы знаний пуст, используем только system instruction")
 
             # Добавляем контекст и историю в системный промпт
             if zep_context:
@@ -401,13 +406,24 @@ class TextilProAgent:
             if self.openai_client or self.anthropic_client:
                 try:
                     logger.info(f"🤖 Генерируем ответ для: '{user_message[:50]}...'")
-                    logger.info(f"📊 Найдено источников в базе знаний: {len(sources_used)}")
                     bot_response = await self.call_llm(messages, max_tokens=2000, temperature=0.5)
 
                     # GPT сам добавляет источники согласно инструкции в system_prompt
                     # Автоматическое добавление убрано чтобы избежать дублирования
 
                     logger.info(f"✅ Ответ сгенерирован успешно (длина: {len(bot_response)} символов)")
+
+                    # SUMMARY лог генерации
+                    logger.info(f"""
+📊 SUMMARY генерации ответа:
+   • User message: '{user_message[:50]}{"..." if len(user_message) > 50 else ""}'
+   • Knowledge base used: {'✅ Yes' if knowledge_context else '❌ No'}
+   • Sources found: {len(sources_used)} - {', '.join(sources_used) if sources_used else 'N/A'}
+   • Zep context: {'✅ Yes' if zep_context else '❌ No'}
+   • Zep history: {'✅ Yes' if zep_history else '❌ No'}
+   • Response length: {len(bot_response)} символов
+   • Model: {getattr(self, 'current_model', 'unknown')}
+""")
 
                 except Exception as llm_error:
                     logger.error(f"❌ Ошибка LLM: {type(llm_error).__name__}: {llm_error}")
