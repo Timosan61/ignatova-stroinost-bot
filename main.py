@@ -314,7 +314,7 @@ async def startup():
         logger.info("⚠️ База данных отключена (DATABASE_URL не настроен)")
 
     # Автоматическая установка webhook при запуске
-    webhook_base = os.getenv('WEBHOOK_URL')
+    webhook_base = os.getenv('WEBHOOK_URL', 'https://ignatova-stroinost-bot-production.up.railway.app')
     if webhook_base:
         # Убедимся что URL правильный (с /webhook на конце)
         webhook_url = f"{webhook_base}/webhook" if not webhook_base.endswith('/webhook') else webhook_base
