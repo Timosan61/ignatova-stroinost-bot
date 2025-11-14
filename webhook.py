@@ -119,6 +119,71 @@ except Exception as e:
     voice_service = None
     logger.error(f"❌ Ошибка инициализации Voice service: {e}")
 
+# === ФУНКЦИЯ ДЛЯ ГУМАНИЗАЦИИ ОТВЕТОВ ===
+async def send_human_like_response(chat_id: int, text: str, user_name: str = None, business_connection_id: str = None):
+    """
+    Отправляет ответ с имитацией человеческого поведения (typing indicator + задержка)
+
+    Прогрессивная формула задержки:
+    - До 1000 символов: 0.02 сек/символ (быстрая печать)
+    - Свыше 1000 символов: базовая 20 сек + 0.005 сек/символ для остатка
+    - Максимум: 8 секунд
+
+    Args:
+        chat_id: ID чата
+        text: Текст сообщения
+        user_name: Имя пользователя (для логов)
+        business_connection_id: ID Business соединения (опционально, для Business API)
+    """
+    try:
+        # Рассчитываем задержку пропорционально длине текста
+        text_length = len(text)
+
+        if text_length <= 1000:
+            # До 1000 символов: 0.02 сек на символ
+            typing_delay = text_length * 0.02
+        else:
+            # Свыше 1000 символов: прогрессивная формула
+            base_delay = 1000 * 0.02  # Первые 1000 символов = 20 сек
+            extra_chars = text_length - 1000
+            extra_delay = extra_chars * 0.005  # Остальное: 5 мс на символ
+            typing_delay = base_delay + extra_delay
+
+        # Ограничиваем максимум 8 секундами
+        typing_delay = min(typing_delay, 8.0)
+
+        # Показываем индикатор "печатает..." (через обычный API)
+        bot.send_chat_action(chat_id, 'typing')
+        logger.info(f"⏱️ Имитация печати: {typing_delay:.2f} сек для {text_length} символов")
+
+        # Асинхронная задержка
+        await asyncio.sleep(typing_delay)
+
+        # Отправляем сообщение
+        if business_connection_id:
+            # Для Business API используем специальную функцию
+            result = send_business_message(chat_id, text, business_connection_id)
+            if result:
+                logger.info(f"✅ Business ответ отправлен пользователю {user_name or chat_id} (с гуманизацией)")
+            else:
+                logger.error(f"❌ Business API не сработал для {user_name or chat_id}")
+        else:
+            # Для обычного API используем bot.send_message
+            bot.send_message(chat_id, text, parse_mode='Markdown')
+            logger.info(f"✅ Ответ отправлен пользователю {user_name or chat_id} (с гуманизацией)")
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка отправки с гуманизацией: {e}")
+        # Fallback: пробуем без Markdown / или через обычный API
+        try:
+            if business_connection_id:
+                send_business_message(chat_id, text, business_connection_id)
+            else:
+                bot.send_message(chat_id, text)
+            logger.info(f"✅ Ответ отправлен (fallback без Markdown) пользователю {user_name or chat_id}")
+        except Exception as e2:
+            logger.error(f"❌ Критическая ошибка отправки ответа: {e2}")
+
 # === ФУНКЦИЯ ДЛЯ ГОЛОСОВОЙ ОБРАБОТКИ ===
 async def process_voice_transcription(voice_data: dict, user_id: int) -> dict:
     """Транскрибирует голосовое сообщение (по образцу artem.integrator)"""
@@ -492,8 +557,11 @@ async def process_webhook(request: Request):
 
 Просто напишите ваш вопрос или отправьте голосовое сообщение!"""
                 
+                # Флаг для определения AI ответа (для гуманизации)
+                is_ai_response = False
+
                 # Если есть текст - обрабатываем через AI
-                elif text and AI_ENABLED:
+                if text and AI_ENABLED:
                     try:
                         session_id = f"user_{user_id}"
                         # Создаем пользователя в Zep если нужно
@@ -506,7 +574,7 @@ async def process_webhook(request: Request):
                                 logger.info(f"✅ Инструкции обновлены с {agent.instruction.get('last_updated')}")
                         except Exception as refresh_error:
                             logger.warning(f"⚠️ Ошибка проверки актуальности инструкций: {refresh_error}")
-                        
+
                         if agent.zep_client:
                             await agent.ensure_user_exists(f"user_{user_id}", {
                                 'first_name': user_name,
@@ -514,22 +582,30 @@ async def process_webhook(request: Request):
                             })
                             await agent.ensure_session_exists(session_id, f"user_{user_id}")
                         response = await agent.generate_response(text, session_id, user_name)
-                        
+                        is_ai_response = True  # Успешный AI ответ - применяем гуманизацию
+
                     except Exception as ai_error:
                         logger.error(f"Ошибка AI генерации: {ai_error}")
                         response = f"Извините, произошла техническая ошибка. Попробуйте позже или напишите вопрос снова."
-                    
+                        is_ai_response = False  # Ошибка - БЕЗ гуманизации
+
                 elif text:
                     # Fallback если AI не доступен
                     response = f"👋 {user_name}, получил ваш вопрос! Подготовлю ответ. Минуточку!"
+                    is_ai_response = False  # Системное сообщение - БЕЗ гуманизации
                 else:
                     return {"ok": True, "action": "no_action"}
-                    
+
                 # Отправляем ответ (с проверкой на None)
                 if response:
-                    bot.send_message(chat_id, response)
-                    logger.info(f"✅ Ответ отправлен в чат {chat_id}")
-                    print(f"✅ Отправлен ответ пользователю {user_name}")
+                    if is_ai_response:
+                        # AI ответ - с гуманизацией (typing indicator + задержка)
+                        await send_human_like_response(chat_id, response, user_name)
+                    else:
+                        # Не AI ответ (ошибки, системные сообщения) - без задержки
+                        bot.send_message(chat_id, response)
+                        logger.info(f"✅ Ответ отправлен в чат {chat_id}")
+                        print(f"✅ Отправлен ответ пользователю {user_name}")
                 else:
                     logger.warning(f"⚠️ Response не установлен для сообщения: {text[:50]}")
                     return {"ok": True, "action": "no_response_generated"}
@@ -576,10 +652,13 @@ async def process_webhook(request: Request):
                 try:
                     logger.info(f"🔄 Начинаю обработку business message: {'voice' if is_voice_message else 'text'}, chat_id={chat_id}")
                     
+                    # Флаг для определения AI ответа (для гуманизации)
+                    is_ai_response = False
+
                     if AI_ENABLED:
                         logger.info(f"🤖 AI включен, генерирую ответ...")
                         session_id = f"business_{user_id}"
-                        
+
                         # Создаем пользователя в Zep если нужно
                         if agent.zep_client:
                             await agent.ensure_user_exists(f"business_{user_id}", {
@@ -587,14 +666,14 @@ async def process_webhook(request: Request):
                                 'email': f'{user_id}@business.telegram.user'
                             })
                             await agent.ensure_session_exists(session_id, f"business_{user_id}")
-                        
+
                         # === ОБРАБОТКА ГОЛОСОВЫХ И АУДИО BUSINESS СООБЩЕНИЙ ===
                         # По образцу artem.integrator: транскрибируем → устанавливаем text → обрабатываем как текст
                         if (is_voice_message or audio_data or (document_data and document_data.get("mime_type", "").startswith("audio/"))):
                             # Определяем какие данные использовать для транскрибации
                             audio_to_process = None
                             audio_type = ""
-                            
+
                             if is_voice_message:
                                 audio_to_process = voice_data
                                 audio_type = "голосовое business"
@@ -604,35 +683,38 @@ async def process_webhook(request: Request):
                             elif document_data and document_data.get("mime_type", "").startswith("audio/"):
                                 audio_to_process = document_data
                                 audio_type = "аудио документ business"
-                            
+
                             if audio_to_process and voice_service:
                                 try:
                                     logger.info(f"🎤 Транскрибируем {audio_type} сообщение от {user_name}")
-                                    
+
                                     # Транскрибируем голосовое сообщение
                                     transcription_result = await process_voice_transcription(audio_to_process, user_id)
-                                    
+
                                     if transcription_result and transcription_result.get('success'):
                                         # Получаем транскрибированный текст
                                         transcribed_text = transcription_result.get('text')
                                         logger.info(f"✅ Business транскрипция: {transcribed_text}")
-                                        
+
                                         # КЛЮЧЕВОЙ МОМЕНТ: устанавливаем text = транскрипция и обрабатываем как обычное сообщение
                                         text = transcribed_text
-                                        
+
                                         # Продолжаем обработку как текстовое сообщение (ниже в блоке AI)
                                     else:
                                         # Ошибка транскрипции
                                         error_msg = transcription_result.get('error', 'Ошибка транскрипции')
                                         logger.error(f"❌ Ошибка business транскрипции: {error_msg}")
                                         response = "Извините, не удалось обработать ваше голосовое сообщение. Попробуйте отправить текстом."
-                                        
+                                        is_ai_response = False  # Ошибка - БЕЗ гуманизации
+
                                 except Exception as voice_error:
                                     logger.error(f"❌ Ошибка при обработке business голосового сообщения: {voice_error}")
                                     response = "Извините, произошла ошибка при обработке голосового сообщения. Попробуйте написать текстом."
+                                    is_ai_response = False  # Ошибка - БЕЗ гуманизации
                             else:
                                 response = "Извините, голосовые сообщения временно не поддерживаются."
-                        
+                                is_ai_response = False  # Системное сообщение - БЕЗ гуманизации
+
                         # === ОБРАБОТКА ТЕКСТОВЫХ BUSINESS СООБЩЕНИЙ (включая транскрибированные) ===
                         if text:  # Обрабатываем текст (в том числе транскрибированный из голоса)
                             # Проверяем актуальность инструкций перед генерацией ответа
@@ -644,8 +726,9 @@ async def process_webhook(request: Request):
                                     logger.info(f"✅ Business: Инструкции обновлены с {agent.instruction.get('last_updated')}")
                             except Exception as refresh_error:
                                 logger.warning(f"⚠️ Business: Ошибка проверки актуальности инструкций: {refresh_error}")
-                            
+
                             response = await agent.generate_response(text, session_id, user_name)
+                            is_ai_response = True  # Успешный AI ответ - применяем гуманизацию
                             logger.info(f"✅ AI ответ сгенерирован: {response[:100]}...")
                     else:
                         logger.info(f"🤖 AI отключен, использую стандартный ответ")
@@ -653,19 +736,25 @@ async def process_webhook(request: Request):
                             response = f"👋 Здравствуйте, {user_name}! Получил ваше голосовое сообщение, но обработка голоса временно недоступна. Попробуйте написать текстом."
                         else:
                             response = f"👋 Здравствуйте, {user_name}! Получил ваш вопрос. Подготовлю ответ!"
-                    
-                    # Для business_message используем специальную функцию
+                        is_ai_response = False  # Fallback - БЕЗ гуманизации
+
+                    # Отправляем ответ
                     logger.info(f"📤 Пытаюсь отправить ответ клиенту {user_name}...")
-                    if business_connection_id:
-                        result = send_business_message(chat_id, response, business_connection_id)
-                        if result:
-                            logger.info(f"✅ Business ответ отправлен клиенту в чат {chat_id}")
-                        else:
-                            logger.error(f"❌ Не удалось отправить через Business API")
+                    if is_ai_response:
+                        # AI ответ - с гуманизацией (typing indicator + задержка)
+                        await send_human_like_response(chat_id, response, user_name, business_connection_id)
                     else:
-                        bot.send_message(chat_id, response)
-                        logger.warning(f"⚠️ Отправлено как обычное сообщение (fallback)")
-                    
+                        # Не AI ответ (ошибки, системные сообщения) - без задержки
+                        if business_connection_id:
+                            result = send_business_message(chat_id, response, business_connection_id)
+                            if result:
+                                logger.info(f"✅ Business ответ отправлен клиенту в чат {chat_id}")
+                            else:
+                                logger.error(f"❌ Не удалось отправить через Business API")
+                        else:
+                            bot.send_message(chat_id, response)
+                            logger.warning(f"⚠️ Отправлено как обычное сообщение (fallback)")
+
                     print(f"✅ Business ответ отправлен клиенту {user_name}")
                     
                 except Exception as e:
