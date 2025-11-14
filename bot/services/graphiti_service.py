@@ -20,6 +20,7 @@ import asyncio
 try:
     from graphiti_core import Graphiti
     from graphiti_core.nodes import EpisodeType
+    from graphiti_core.llm_client import LLMConfig, OpenAIClient
     from neo4j import GraphDatabase, AsyncGraphDatabase
     GRAPHITI_AVAILABLE = True
 except ImportError:
@@ -75,19 +76,28 @@ class GraphitiService:
                 self.enabled = False
                 return
 
-            # Инициализация Graphiti client
-            # Graphiti принимает позиционные аргументы: (uri, user, password)
-            # ВАЖНО: Используем GPT-4o-mini вместо GPT-4o (17x дешевле!)
-            # Graphiti читает MODEL_NAME и SMALL_MODEL_NAME из environment variables
-            os.environ['MODEL_NAME'] = MODEL_NAME
-            os.environ['SMALL_MODEL_NAME'] = SMALL_MODEL_NAME
+            # Инициализация Graphiti client с GPT-4o-mini
+            # КРИТИЧЕСКИ ВАЖНО: Передать LLMConfig с model="gpt-4o-mini"
+            # Environment variables НЕ работают - нужен LLMConfig!
+
+            logger.info(f"Creating LLM client with model: {MODEL_NAME}")
+
+            llm_config = LLMConfig(
+                api_key=OPENAI_API_KEY,
+                model=MODEL_NAME,  # "gpt-4o-mini"
+                temperature=0.1
+            )
+
+            llm_client = OpenAIClient(config=llm_config)
 
             self.graphiti_client = Graphiti(
                 NEO4J_URI,
                 NEO4J_USER,
-                NEO4J_PASSWORD
+                NEO4J_PASSWORD,
+                llm_client=llm_client
             )
-            logger.info(f"Graphiti client initialized successfully (using {MODEL_NAME})")
+
+            logger.info(f"✅ Graphiti client initialized successfully with {MODEL_NAME}")
 
         except Exception as e:
             logger.error(f"Failed to initialize Graphiti service: {e}")
