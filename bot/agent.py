@@ -425,6 +425,17 @@ class TextilProAgent:
    • Model: {getattr(self, 'current_model', 'unknown')}
 """)
 
+                    # Добавляем отладочную информацию в ответ бота
+                    debug_info = "\n\n---\n🔍 **DEBUG INFO:**\n"
+                    debug_info += f"📚 Knowledge Base: {'✅ Использована' if knowledge_context else '❌ Не использована'}\n"
+                    if sources_used:
+                        debug_info += f"📖 Sources ({len(sources_used)}): {', '.join(sources_used[:3])}\n"
+                    debug_info += f"🧠 Zep Memory: {'✅ Да' if zep_context or zep_history else '❌ Нет'}\n"
+                    debug_info += f"🤖 Model: {getattr(self, 'current_model', 'unknown')}\n"
+                    debug_info += f"📏 Context length: {len(knowledge_context)} chars\n"
+
+                    bot_response += debug_info
+
                 except Exception as llm_error:
                     logger.error(f"❌ Ошибка LLM: {type(llm_error).__name__}: {llm_error}")
                     logger.error(f"❌ Детали: {str(llm_error)}")

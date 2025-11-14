@@ -286,38 +286,44 @@ class GraphitiService:
         Args:
             query: Поисковый запрос
             limit: Максимальное количество результатов
-            min_similarity: Минимальный порог similarity (0-1)
+            min_similarity: Минимальный порог similarity (игнорируется для EntityEdge)
 
         Returns:
-            List результатов с content, metadata, similarity score
+            List результатов с content, metadata из EntityEdge
         """
         if not self.enabled:
             return []
 
         try:
             # ВАЖНО: API Graphiti использует num_results, а не limit
+            # search() возвращает list[EntityEdge]
             results = await self.graphiti_client.search(
                 query=query,
                 num_results=limit
             )
 
-            # Фильтрация по similarity threshold
-            filtered_results = [
-                {
-                    "content": r.content,
-                    "metadata": r.metadata,
-                    "similarity": r.similarity,
-                    "source": r.source_description
-                }
-                for r in results
-                if r.similarity >= min_similarity
-            ]
+            # EntityEdge не имеет similarity, извлекаем fact (текстовое описание)
+            # Graphiti уже ранжирует результаты по релевантности
+            filtered_results = []
+            for r in results:
+                # EntityEdge attributes: fact, name, uuid, source_node_uuid, target_node_uuid
+                filtered_results.append({
+                    "content": r.fact,  # Текстовое описание relationship
+                    "metadata": {
+                        "edge_type": r.name,  # Тип relationship
+                        "edge_uuid": r.uuid,
+                        "created_at": str(r.created_at) if hasattr(r, 'created_at') else None,
+                        "valid_at": str(r.valid_at) if hasattr(r, 'valid_at') else None,
+                    },
+                    "source": f"Graphiti Edge: {r.name}"
+                })
 
-            logger.info(f"Semantic search '{query}': {len(filtered_results)} results (similarity >= {min_similarity})")
+            logger.info(f"Semantic search '{query}': {len(filtered_results)} results from Graphiti EntityEdges")
             return filtered_results
 
         except Exception as e:
             logger.error(f"Semantic search failed: {type(e).__name__}: {e}")
+            logger.exception("Full traceback:")
             return []
 
     async def search_hybrid(
