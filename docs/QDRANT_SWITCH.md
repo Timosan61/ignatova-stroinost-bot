@@ -351,9 +351,16 @@ https://railway.app/project/a470438c-3a6c-4952-80df-9e2c067233c6
 
 ## История изменений
 
-**14 ноября 2025** - Initial implementation
+**14 ноября 2025** - Initial implementation + bug fixes
 - Создан QdrantService (`bot/services/qdrant_service.py`)
 - Добавлен переключатель в KnowledgeSearchService
 - Скрипт миграции (`scripts/migrate_to_qdrant.py`)
 - Admin API endpoints (`/api/admin/qdrant/*`)
 - Документация
+
+**Исправления миграции:**
+1. ✅ Fix: `FAQEntry.importance` → `FAQEntry.frequency`
+2. ✅ Fix: `parse_curator_corrections()` → `parse_corrections()`
+3. ✅ Fix: `correction.original_text` → `correction.student_text`
+4. ✅ Fix: Metadata атрибуты CuratorCorrection (использованы реальные поля модели)
+5. ✅ Fix: Добавлены файлы `*_ALL.json` в Git (были исключены через .gitignore)
