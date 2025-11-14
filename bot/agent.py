@@ -164,55 +164,58 @@ class TextilProAgent:
         4. Local files fallback (встроено в Graphiti) - MD файлы
 
         Returns:
-            tuple: (context: str, sources: List[str])
+            tuple: (context: str, sources: List[str], search_results: List[SearchResult])
         """
 
         # ====================
-        # STRATEGY 1: Graphiti Knowledge Search (PRIMARY)
+        # STRATEGY 1: Knowledge Search (Qdrant/Graphiti)
         # ====================
         if KNOWLEDGE_SEARCH_AVAILABLE:
             try:
                 knowledge_service = get_knowledge_search_service()
 
-                if knowledge_service.graphiti_enabled:
-                    logger.info(f"🔍 Поиск через Graphiti Knowledge Graph: '{query[:50]}...'")
+                # Проверка доступности систем
+                if knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
+                    logger.info(f"🔵 Поиск через Qdrant Vector DB: '{query[:50]}...'")
+                elif knowledge_service.graphiti_enabled:
+                    logger.info(f"🟢 Поиск через Graphiti Knowledge Graph: '{query[:50]}...'")
+                else:
+                    logger.info("⚪ Ни одна из систем поиска не доступна")
 
-                    # Определяем оптимальную стратегию поиска
-                    from .services.knowledge_search import SearchStrategy
-                    strategy = knowledge_service.route_query(query)
-                    logger.info(f"🎯 Выбрана стратегия: {strategy}")
+                # Определяем оптимальную стратегию поиска
+                from .services.knowledge_search import SearchStrategy
+                strategy = knowledge_service.route_query(query)
+                logger.info(f"🎯 Выбрана стратегия: {strategy}")
 
-                    # Выполняем поиск
-                    search_results = await knowledge_service.search(
-                        query=query,
-                        strategy=strategy,
-                        limit=limit,
-                        min_relevance=0.6
+                # Выполняем поиск
+                search_results = await knowledge_service.search(
+                    query=query,
+                    strategy=strategy,
+                    limit=limit,
+                    min_relevance=0.6
+                )
+
+                if search_results:
+                    # Форматируем контекст для LLM
+                    context = knowledge_service.format_context_for_llm(
+                        results=search_results,
+                        max_length=3000
                     )
 
-                    if search_results:
-                        # Форматируем контекст для LLM
-                        context = knowledge_service.format_context_for_llm(
-                            results=search_results,
-                            max_length=3000
-                        )
+                    # Извлекаем источники
+                    sources_used = [result.source for result in search_results]
 
-                        # Извлекаем источники
-                        sources_used = [result.source for result in search_results]
-
-                        logger.info(f"✅ Graphiti: Найдено {len(search_results)} релевантных фрагментов")
-                        return context, sources_used
-                    else:
-                        logger.info("📭 Graphiti не нашел релевантных результатов")
+                    logger.info(f"✅ Найдено {len(search_results)} релевантных фрагментов")
+                    return context, sources_used, search_results
                 else:
-                    logger.info("⚠️ Graphiti отключен (GRAPHITI_ENABLED=false)")
+                    logger.info("📭 Не нашли релевантных результатов")
 
             except Exception as e:
-                logger.warning(f"⚠️ Ошибка Graphiti search: {e}")
+                logger.warning(f"⚠️ Ошибка knowledge search: {e}")
 
-        # Если Graphiti недоступен или не нашёл результатов, возвращаем пустой результат
+        # Если поиск недоступен или не нашёл результатов, возвращаем пустой результат
         logger.info("📭 База знаний недоступна или не нашла релевантной информации")
-        return "", []
+        return "", [], []
     
     async def add_to_zep_memory(self, session_id: str, user_message: str, bot_response: str, user_name: str = None):
         """Добавляет сообщения в Zep Memory с именами пользователей"""
@@ -375,8 +378,8 @@ class TextilProAgent:
 
             # Ищем релевантную информацию в базе знаний
             logger.info(f"🔎 Вызов search_knowledge_base() для запроса: '{user_message[:50]}...'")
-            knowledge_context, sources_used = await self.search_knowledge_base(user_message, limit=3)
-            logger.info(f"✅ Поиск завершён: context={len(knowledge_context)} символов, sources={len(sources_used)}")
+            knowledge_context, sources_used, search_results = await self.search_knowledge_base(user_message, limit=3)
+            logger.info(f"✅ Поиск завершён: context={len(knowledge_context)} символов, sources={len(sources_used)}, results={len(search_results)}")
 
             # Пытаемся получить контекст из Zep Memory
             zep_context = await self.get_zep_memory_context(session_id)
@@ -443,9 +446,43 @@ class TextilProAgent:
 
                     # Добавляем отладочную информацию в ответ бота
                     debug_info = "\n\n---\n🔍 **DEBUG INFO:**\n"
+
+                    # Информация о системе поиска
+                    if KNOWLEDGE_SEARCH_AVAILABLE:
+                        from bot.services.knowledge_search import get_knowledge_search_service
+                        knowledge_service = get_knowledge_search_service()
+
+                        if knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
+                            debug_info += "🔵 **Search System:** QDRANT Vector DB\n"
+                        elif knowledge_service.graphiti_enabled:
+                            debug_info += "🟢 **Search System:** GRAPHITI Knowledge Graph\n"
+                        else:
+                            debug_info += "⚪ **Search System:** FALLBACK (local files)\n"
+
                     debug_info += f"📚 Knowledge Base: {'✅ Использована' if knowledge_context else '❌ Не использована'}\n"
-                    if sources_used:
-                        debug_info += f"📖 Sources ({len(sources_used)}): {', '.join(sources_used[:3])}\n"
+
+                    # Детали результатов поиска
+                    if search_results:
+                        debug_info += f"📊 **Results:** {len(search_results)} найдено\n"
+
+                        # Средняя релевантность
+                        avg_score = sum(r.relevance_score for r in search_results) / len(search_results)
+                        debug_info += f"⭐ **Avg Relevance:** {avg_score:.2f}\n"
+
+                        # Разбивка по типам entities (metadata)
+                        entity_types = {}
+                        for result in search_results:
+                            entity_type = result.metadata.get('entity_type', 'unknown')
+                            entity_types[entity_type] = entity_types.get(entity_type, 0) + 1
+
+                        if entity_types:
+                            types_str = ', '.join([f"{k}:{v}" for k, v in entity_types.items()])
+                            debug_info += f"📁 **Entity Types:** {types_str}\n"
+
+                        # Top sources
+                        if sources_used:
+                            debug_info += f"📖 **Sources ({len(sources_used)}):** {', '.join(sources_used[:3])}\n"
+
                     debug_info += f"🧠 Zep Memory: {'✅ Да' if zep_context or zep_history else '❌ Нет'}\n"
                     debug_info += f"🤖 Model: {getattr(self, 'current_model', 'unknown')}\n"
                     debug_info += f"📏 Context length: {len(knowledge_context)} chars\n"
