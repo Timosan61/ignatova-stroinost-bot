@@ -75,10 +75,10 @@ class QdrantService:
                 self.enabled = False
                 return
 
-            # Инициализация sentence transformer для embeddings
-            logger.info(f"Loading sentence transformer model: {EMBEDDING_MODEL}")
-            self.encoder = SentenceTransformer(EMBEDDING_MODEL)
-            logger.info(f"✅ Sentence transformer loaded: {EMBEDDING_MODEL}")
+            # LAZY LOADING: sentence transformer загружается при первом использовании
+            # чтобы не блокировать startup приложения
+            logger.info(f"Sentence transformer will be loaded on first use: {EMBEDDING_MODEL}")
+            self.encoder = None  # Будет загружен в _get_encoder()
 
             # Проверка подключения
             try:
@@ -95,6 +95,22 @@ class QdrantService:
             logger.error(f"Failed to initialize Qdrant service: {e}")
             logger.exception("Full traceback:")
             self.enabled = False
+
+    def _get_encoder(self) -> SentenceTransformer:
+        """
+        Lazy loading для sentence transformer модели
+
+        Модель загружается только при первом использовании,
+        чтобы не блокировать startup приложения.
+
+        Returns:
+            SentenceTransformer instance
+        """
+        if self.encoder is None:
+            logger.info(f"🔄 Loading sentence transformer model: {EMBEDDING_MODEL} (first use)")
+            self.encoder = SentenceTransformer(EMBEDDING_MODEL)
+            logger.info(f"✅ Sentence transformer loaded: {EMBEDDING_MODEL}")
+        return self.encoder
 
     async def health_check(self) -> Dict[str, Any]:
         """
@@ -212,13 +228,14 @@ class QdrantService:
                 ...
             ]
         """
-        if not self.enabled or not self.client or not self.encoder:
+        if not self.enabled or not self.client:
             logger.warning("Qdrant service not available for search")
             return []
 
         try:
-            # Генерируем embedding для запроса
-            query_vector = self.encoder.encode(query).tolist()
+            # Генерируем embedding для запроса (lazy load encoder)
+            encoder = self._get_encoder()
+            query_vector = encoder.encode(query).tolist()
 
             # Создаём фильтр если указан entity_type
             search_filter = None
@@ -286,13 +303,14 @@ class QdrantService:
         Returns:
             List результатов поиска (формат как в search_semantic)
         """
-        if not self.enabled or not self.client or not self.encoder:
+        if not self.enabled or not self.client:
             logger.warning("Qdrant service not available for hybrid search")
             return []
 
         try:
-            # Генерируем embedding для запроса
-            query_vector = self.encoder.encode(query).tolist()
+            # Генерируем embedding для запроса (lazy load encoder)
+            encoder = self._get_encoder()
+            query_vector = encoder.encode(query).tolist()
 
             # Создаём фильтр из filters dict
             search_filter = None
@@ -360,12 +378,13 @@ class QdrantService:
         Returns:
             Tuple (success: bool, error_message: Optional[str])
         """
-        if not self.enabled or not self.client or not self.encoder:
+        if not self.enabled or not self.client:
             return False, "Qdrant service not available"
 
         try:
-            # Генерируем embedding
-            vector = self.encoder.encode(content).tolist()
+            # Генерируем embedding (lazy load encoder)
+            encoder = self._get_encoder()
+            vector = encoder.encode(content).tolist()
 
             # Подготавливаем payload
             payload = {
