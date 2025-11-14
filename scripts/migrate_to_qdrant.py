@@ -220,7 +220,7 @@ class QdrantMigration:
         corrections_file = self.kb_dir / "curator_corrections_ALL.json"
         if corrections_file.exists():
             logger.info("📖 Parsing Curator Corrections...")
-            corrections = parser.parse_curator_corrections(corrections_file)
+            corrections = parser.parse_corrections(corrections_file)
             for correction in corrections:
                 entity = {
                     "id": f"correction_{entity_id}",
