@@ -6,7 +6,7 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
-ZEP_API_KEY = os.getenv('ZEP_API_KEY', '')
+ZEP_API_KEY = os.getenv('ZEP_API_KEY', '').strip()  # Strip whitespace and newlines
 BOT_USERNAME = os.getenv('BOT_USERNAME')
 
 # Neo4j & Graphiti Configuration
