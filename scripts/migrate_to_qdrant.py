@@ -241,6 +241,51 @@ class QdrantMigration:
 
             logger.info(f"✅ Curator Corrections parsed: {len(corrections)} entries")
 
+        # 4. Parse Student Questions
+        questions_file = self.kb_dir / "student_questions_ALL.json"
+        if questions_file.exists():
+            logger.info("📖 Parsing Student Questions...")
+            questions = parser.parse_questions(questions_file, sample_limit=500)
+            for question in questions:
+                entity = {
+                    "id": f"question_{entity_id}",
+                    "entity_type": "question",
+                    "title": question.question_text[:100],
+                    "content": question.to_episode_content(),
+                    "metadata": {
+                        "category": question.category,
+                        "lesson_reference": question.lesson_reference,
+                        "student_name": question.student_name
+                    }
+                }
+                all_entities.append(entity)
+                entity_id += 1
+
+            logger.info(f"✅ Student Questions parsed: {len(questions)} entries")
+
+        # 5. Parse Brainwrite Examples
+        brainwrites_file = self.kb_dir / "student_brainwrites_SAMPLE.json"
+        if brainwrites_file.exists():
+            logger.info("📖 Parsing Brainwrite Examples...")
+            brainwrites = parser.parse_brainwrites(brainwrites_file, sample_limit=200)
+            for brainwrite in brainwrites:
+                entity = {
+                    "id": f"brainwrite_{entity_id}",
+                    "entity_type": "brainwrite",
+                    "title": brainwrite.text[:100],
+                    "content": brainwrite.to_episode_content(),
+                    "metadata": {
+                        "student_name": brainwrite.student_name,
+                        "lesson_number": brainwrite.lesson_number,
+                        "technique_used": brainwrite.technique_used,
+                        "quality_rating": brainwrite.quality_rating
+                    }
+                }
+                all_entities.append(entity)
+                entity_id += 1
+
+            logger.info(f"✅ Brainwrite Examples parsed: {len(brainwrites)} entries")
+
         logger.info(f"📊 Total entities parsed: {len(all_entities)}")
         return all_entities
 
