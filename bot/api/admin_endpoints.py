@@ -155,7 +155,7 @@ async def _run_knowledge_loading(
 
         # Импорт модулей
         try:
-            from load_knowledge_to_graphiti import GraphitiLoader
+            from scripts.load_knowledge_to_graphiti import GraphitiLoader
         except ImportError as e:
             error_msg = f"Не удалось импортировать GraphitiLoader: {e}"
             logger.error(f"❌ {error_msg}")
