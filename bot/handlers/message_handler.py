@@ -7,6 +7,9 @@ from typing import Dict, Any, Optional
 import telebot
 from datetime import datetime
 
+# Database storage
+from bot.services.message_storage_service import message_storage
+
 logger = logging.getLogger(__name__)
 
 class MessageHandler:
@@ -29,6 +32,20 @@ class MessageHandler:
         logger.info(f"📨 Обычное сообщение от {user_name} (ID: {user_id}): {text[:50]}...")
         
         try:
+            # === СОХРАНЕНИЕ В БД: Шаг 1 - Сохранить/обновить чат ===
+            try:
+                chat_record = await message_storage.save_or_update_chat({
+                    'id': chat_id,
+                    'type': message_data.get("chat", {}).get("type", "private"),
+                    'username': message_data.get("from", {}).get("username"),
+                    'first_name': user_name,
+                    'last_name': message_data.get("from", {}).get("last_name"),
+                    'phone': message_data.get("from", {}).get("phone_number"),
+                })
+            except Exception as db_error:
+                logger.warning(f"⚠️ MySQL недоступен, пропускаем сохранение чата: {db_error}")
+                chat_record = None
+
             if self.agent:
                 session_id = f"user_{user_id}"
                 # Убедимся что пользователь и сессия существуют в Zep
@@ -37,21 +54,62 @@ class MessageHandler:
                     'source': 'telegram'
                 })
                 await self.agent.ensure_session_exists(session_id, str(user_id))
-                
+
                 # Генерируем ответ
                 response = await self.agent.generate_response(text, session_id, user_name)
-                
+                ai_model = getattr(self.agent, 'current_model', 'unknown')
+
                 # Отправляем ответ
                 self.bot.send_message(chat_id, response)
                 logger.info(f"✅ Ответ отправлен пользователю {user_name}")
-                
+
+                # === СОХРАНЕНИЕ В БД: Шаг 2 - Сохранить сообщение + ответ бота ===
+                if chat_record:
+                    try:
+                        # Проверяем, было ли это голосовое сообщение с транскрипцией
+                        was_voice = message_data.get("_was_voice", False)
+                        voice_transcript = message_data.get("_voice_transcript")
+
+                        await message_storage.save_message({
+                            'message_id': message_data.get("message_id", f"{user_id}_{int(datetime.utcnow().timestamp())}"),
+                            'text': text if not was_voice else None,
+                            'voice_transcript': voice_transcript if was_voice else None,
+                            'from': message_data.get("from"),
+                            'date': message_data.get("date"),
+                            'is_from_user': True,
+                            'is_from_business': False,
+                            'bot_response': response,
+                            'ai_model': ai_model,
+                        }, chat=chat_record)
+                        message_type = "голосовое" if was_voice else "текстовое"
+                        logger.info(f"💾 Обычное {message_type} сообщение сохранено в БД для пользователя {user_name}")
+                    except Exception as db_error:
+                        logger.warning(f"⚠️ Не удалось сохранить сообщение в БД: {db_error}")
+
                 return {"ok": True, "action": "message_processed"}
             else:
                 # Fallback если AI недоступен
                 fallback_response = self._get_fallback_response(text)
                 self.bot.send_message(chat_id, fallback_response)
+
+                # Сохраняем fallback ответ
+                if chat_record:
+                    try:
+                        await message_storage.save_message({
+                            'message_id': message_data.get("message_id", f"{user_id}_{int(datetime.utcnow().timestamp())}"),
+                            'text': text,
+                            'from': message_data.get("from"),
+                            'date': message_data.get("date"),
+                            'is_from_user': True,
+                            'is_from_business': False,
+                            'bot_response': fallback_response,
+                            'ai_model': 'fallback',
+                        }, chat=chat_record)
+                    except Exception as db_error:
+                        logger.warning(f"⚠️ Не удалось сохранить fallback сообщение в БД: {db_error}")
+
                 return {"ok": True, "action": "fallback_response"}
-                
+
         except Exception as e:
             logger.error(f"❌ Ошибка обработки сообщения от {user_name}: {e}")
             error_message = "Извините, произошла техническая ошибка. Попробуйте написать снова."
@@ -109,9 +167,13 @@ class MessageHandler:
 
             logger.info(f"📝 Транскрипция от {user_name}: {text[:100]}...")
 
-            # Обрабатываем как обычное текстовое сообщение
+            # Обрабатываем как обычное текстовое сообщение, но сохраняем информацию о голосовом
             text_message_data = message_data.copy()
             text_message_data["text"] = text
+            text_message_data["_was_voice"] = True  # Флаг что это голосовое
+            text_message_data["_voice_transcript"] = text  # Транскрипция
+            text_message_data["_voice_data"] = voice  # Оригинальные метаданные
+            del text_message_data["voice"]  # Убираем voice данные
 
             return await self.handle_regular_message(text_message_data)
 

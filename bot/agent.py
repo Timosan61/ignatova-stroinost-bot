@@ -157,10 +157,11 @@ class TextilProAgent:
         """
         Поиск релевантной информации в базе знаний
 
-        Использует многоуровневую fallback стратегию:
-        1. Graphiti hybrid search (если доступен) - Neo4j knowledge graph
-        2. Zep Cloud search (legacy метод) - keyword matching в сессиях
-        3. Local files fallback (встроено в Graphiti) - локальные MD файлы
+        Использует Graphiti hybrid search:
+        1. Semantic search - векторный поиск по embeddings
+        2. Full-text search - BM25 keyword matching
+        3. Graph traversal - поиск по relationships
+        4. Local files fallback (встроено в Graphiti) - MD файлы
 
         Returns:
             tuple: (context: str, sources: List[str])
@@ -202,130 +203,16 @@ class TextilProAgent:
                         logger.info(f"✅ Graphiti: Найдено {len(search_results)} релевантных фрагментов")
                         return context, sources_used
                     else:
-                        logger.info("📭 Graphiti не нашел релевантных результатов, fallback к Zep...")
+                        logger.info("📭 Graphiti не нашел релевантных результатов")
                 else:
-                    logger.info("⚠️ Graphiti отключен (GRAPHITI_ENABLED=false), используем Zep...")
+                    logger.info("⚠️ Graphiti отключен (GRAPHITI_ENABLED=false)")
 
             except Exception as e:
-                logger.warning(f"⚠️ Ошибка Graphiti search, fallback к Zep: {e}")
+                logger.warning(f"⚠️ Ошибка Graphiti search: {e}")
 
-        # ====================
-        # STRATEGY 2: Zep Cloud Search (FALLBACK)
-        # ====================
-        if not self.zep_client:
-            logger.info("⚠️ Zep недоступен, возвращаем пустой результат")
-            return "", []
-
-        try:
-            logger.info(f"🔍 Ищем в Zep Cloud (legacy): '{query[:50]}...'")
-
-            # Ищем по всем категориям знаний в Memory
-            results = []
-
-            categories = [
-                'training_summary', 'training_faq', 'scripts', 'objections',
-                'faq', 'techniques', 'sales_methodology', 'general'
-            ]
-
-            for category in categories:
-                # Ищем во всех подсессиях этой категории
-                for session_part in range(1, 15):  # Максимум 15 подсессий на категорию
-                    try:
-                        session_id = f"knowledge_{category}_session_{session_part}"
-
-                        # Получаем всю память сессии (так как search deprecated)
-                        memory = await self.zep_client.memory.get(session_id=session_id)
-
-                        if memory and memory.messages:
-                            # Локально фильтруем сообщения по запросу
-                            query_lower = query.lower()
-                            found_messages = []
-
-                            for msg in memory.messages:
-                                if msg.role_type == 'assistant' and msg.content:
-                                    # Проверяем содержит ли сообщение запрос
-                                    content_lower = msg.content.lower()
-                                    if any(word in content_lower for word in query_lower.split()):
-                                        # Добавляем результат с метаданными источника
-                                        result_with_source = {
-                                            'content': msg.content,
-                                            'category': category,
-                                            'session': session_part
-                                        }
-                                        found_messages.append(result_with_source)
-                                        if len(found_messages) >= 2:  # Максимум 2 результата с сессии
-                                            break
-
-                            results.extend(found_messages)
-
-                            # Ограничиваем общее количество результатов
-                            if len(results) >= limit:
-                                break
-
-                        if len(results) >= limit:
-                            break
-
-                    except Exception as e:
-                        # Если сессии не существует, прерываем поиск по этой категории
-                        if "404" in str(e):
-                            break
-                        continue
-
-                if len(results) >= limit:
-                    break
-
-            if not results:
-                logger.info("📭 В базе знаний ничего не найдено")
-                return "", []
-
-            # Формируем контекст из найденных результатов
-            context_parts = []
-            sources_used = []  # Список использованных источников
-
-            for i, result in enumerate(results):
-                try:
-                    # Извлекаем содержимое и метаданные из результата поиска
-                    if isinstance(result, dict) and 'content' in result:
-                        content = result['content']
-                        category = result.get('category', 'unknown').upper()
-                        session = result.get('session', '?')
-                        source_info = f"{category}-сессия{session}"
-                    elif hasattr(result, 'content'):
-                        content = result.content
-                        source_info = f"UNKNOWN-источник{i+1}"
-                    elif hasattr(result, 'data'):
-                        content = result.data
-                        source_info = f"UNKNOWN-источник{i+1}"
-                    else:
-                        content = str(result)
-                        source_info = f"UNKNOWN-источник{i+1}"
-
-                    # Ограничиваем длину каждого результата
-                    if len(content) > 800:
-                        content = content[:800] + "..."
-
-                    context_parts.append(f"[{source_info}] {content}")
-                    sources_used.append(source_info)
-
-                except Exception as e:
-                    logger.warning(f"⚠️ Ошибка обработки результата {i+1}: {e}")
-                    continue
-
-            context = "\n\n".join(context_parts)
-
-            # Ограничиваем общий размер контекста
-            max_context_chars = 3000
-            if len(context) > max_context_chars:
-                context = context[:max_context_chars] + "\n\n[...контекст обрезан...]"
-
-            logger.info(f"✅ Zep: Найдено {len(results)} релевантных фрагментов ({len(context)} символов)")
-            # Возвращаем кортеж (контекст, список источников)
-            return context, sources_used
-
-        except Exception as e:
-            logger.error(f"❌ Ошибка поиска в базе знаний: {e}")
-            print(f"❌ Ошибка поиска в базе знаний: {e}")
-            return "", []
+        # Если Graphiti недоступен или не нашёл результатов, возвращаем пустой результат
+        logger.info("📭 База знаний недоступна или не нашла релевантной информации")
+        return "", []
     
     async def add_to_zep_memory(self, session_id: str, user_message: str, bot_response: str, user_name: str = None):
         """Добавляет сообщения в Zep Memory с именами пользователей"""
@@ -557,6 +444,35 @@ class TextilProAgent:
 
             # Сохраняем в Zep Memory (с fallback на локальное хранилище)
             await self.add_to_zep_memory(session_id, user_message, bot_response, user_name)
+
+            # === СОХРАНЕНИЕ В GRAPHITI: Temporal Knowledge Graph диалогов ===
+            try:
+                if KNOWLEDGE_SEARCH_AVAILABLE:
+                    knowledge_service = get_knowledge_search_service()
+                    if knowledge_service.graphiti_enabled:
+                        # Формируем episode из диалога
+                        user_name_display = user_name or "Пользователь"
+                        episode_content = f"Пользователь ({user_name_display}): {user_message}\n\nАссистент (Анастасия): {bot_response}"
+
+                        # Добавляем episode в knowledge graph
+                        success, episode_id = await knowledge_service.graphiti_service.add_episode(
+                            content=episode_content,
+                            episode_type="conversation",
+                            metadata={
+                                "session_id": session_id,
+                                "user_name": user_name_display,
+                                "timestamp": datetime.utcnow().isoformat()
+                            },
+                            source_description=f"Telegram conversation with {user_name_display}"
+                        )
+
+                        if success:
+                            logger.info(f"✅ Episode сохранён в Graphiti: {episode_id}")
+                        else:
+                            logger.warning(f"⚠️ Не удалось сохранить episode в Graphiti: {episode_id}")
+            except Exception as graphiti_error:
+                # Не критично - если Graphiti недоступен, бот продолжает работать
+                logger.warning(f"⚠️ Graphiti недоступен, диалог не сохранён в knowledge graph: {graphiti_error}")
 
             return bot_response
 
