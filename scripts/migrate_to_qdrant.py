@@ -177,7 +177,7 @@ class QdrantMigration:
             faq_entries = parser.parse_faq(faq_file)
             for faq in faq_entries:
                 entity = {
-                    "id": f"faq_{entity_id}",
+                    "id": entity_id,  # Qdrant requires integer or UUID, not string
                     "entity_type": "faq",
                     "title": faq.question[:100],  # Первые 100 символов вопроса
                     "content": faq.to_episode_content(),
@@ -199,7 +199,7 @@ class QdrantMigration:
             lessons = parser.parse_lessons(kb_file)
             for lesson in lessons:
                 entity = {
-                    "id": f"lesson_{lesson.lesson_number}_chunk_{lesson.chunk_index or 0}",
+                    "id": entity_id,  # Qdrant requires integer or UUID, not string
                     "entity_type": "lesson",
                     "title": lesson.title,
                     "content": lesson.to_episode_content(),
@@ -223,7 +223,7 @@ class QdrantMigration:
             corrections = parser.parse_corrections(corrections_file)
             for correction in corrections:
                 entity = {
-                    "id": f"correction_{entity_id}",
+                    "id": entity_id,  # Qdrant requires integer or UUID, not string
                     "entity_type": "correction",
                     "title": correction.student_text[:100] if correction.student_text else correction.error_type,
                     "content": correction.to_episode_content(),
@@ -248,7 +248,7 @@ class QdrantMigration:
             questions = parser.parse_questions(questions_file, sample_limit=500)
             for question in questions:
                 entity = {
-                    "id": f"question_{entity_id}",
+                    "id": entity_id,  # Qdrant requires integer or UUID, not string
                     "entity_type": "question",
                     "title": question.question_text[:100],
                     "content": question.to_episode_content(),
@@ -270,7 +270,7 @@ class QdrantMigration:
             brainwrites = parser.parse_brainwrites(brainwrites_file, sample_limit=200)
             for brainwrite in brainwrites:
                 entity = {
-                    "id": f"brainwrite_{entity_id}",
+                    "id": entity_id,  # Qdrant requires integer or UUID, not string
                     "entity_type": "brainwrite",
                     "title": brainwrite.text[:100],
                     "content": brainwrite.to_episode_content(),
