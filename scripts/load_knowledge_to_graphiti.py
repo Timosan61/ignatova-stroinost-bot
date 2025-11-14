@@ -31,6 +31,13 @@ except ImportError:
     print("⚠️ tqdm not installed. Install: pip install tqdm")
     sys.exit(1)
 
+try:
+    from neo4j.exceptions import ServiceUnavailable, ClientError
+except ImportError:
+    # Fallback если neo4j не установлен (не должно произойти)
+    ServiceUnavailable = Exception
+    ClientError = Exception
+
 # Add root to PYTHONPATH
 root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
@@ -86,14 +93,14 @@ class GraphitiLoader:
                 "stats": self.stats
             }, f, indent=2)
 
-    async def load_entity(self, entity: Any, entity_id: str, max_retries: int = 3) -> bool:
+    async def load_entity(self, entity: Any, entity_id: str, max_retries: int = 10) -> bool:
         """
         Загрузить один entity в Graphiti
 
         Args:
             entity: Pydantic entity
             entity_id: Уникальный ID
-            max_retries: Количество попыток
+            max_retries: Количество попыток (увеличено до 10 для Neo4j token refresh)
 
         Returns:
             True if success, False otherwise
@@ -129,12 +136,31 @@ class GraphitiLoader:
                         self.stats["failed"] += 1
                         return False
 
-            except Exception as e:
+            except ServiceUnavailable as e:
+                # Neo4j токен истёк или временно недоступен (обновление токена)
                 if attempt < max_retries - 1:
-                    logger.warning(f"⚠️ Retry {attempt + 1}/{max_retries} for {entity_id}: {e}")
-                    await asyncio.sleep(1 * (attempt + 1))
+                    backoff_seconds = min(10 + (attempt * 2), 30)  # 10s, 12s, 14s ... до 30s
+                    logger.warning(f"⚠️ Neo4j unavailable (token refresh?), retry {attempt + 1}/{max_retries} for {entity_id} after {backoff_seconds}s")
+                    await asyncio.sleep(backoff_seconds)
                 else:
-                    logger.error(f"❌ Failed {entity_id} after {max_retries} attempts: {e}")
+                    logger.error(f"❌ Neo4j unavailable for {entity_id} after {max_retries} attempts: {e}")
+                    self.stats["failed"] += 1
+                    return False
+
+            except ClientError as e:
+                # Neo4j query error - не retry, это скорее всего проблема с данными
+                logger.error(f"❌ Neo4j client error for {entity_id}: {e}")
+                self.stats["failed"] += 1
+                return False
+
+            except Exception as e:
+                # Другие ошибки - retry с exponential backoff
+                if attempt < max_retries - 1:
+                    backoff_seconds = 2 * (attempt + 1)  # 2s, 4s, 6s, 8s ...
+                    logger.warning(f"⚠️ Retry {attempt + 1}/{max_retries} for {entity_id} after {backoff_seconds}s: {type(e).__name__}: {e}")
+                    await asyncio.sleep(backoff_seconds)
+                else:
+                    logger.error(f"❌ Failed {entity_id} after {max_retries} attempts: {type(e).__name__}: {e}")
                     self.stats["failed"] += 1
                     return False
 
