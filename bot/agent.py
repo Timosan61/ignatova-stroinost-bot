@@ -446,33 +446,34 @@ class TextilProAgent:
             await self.add_to_zep_memory(session_id, user_message, bot_response, user_name)
 
             # === СОХРАНЕНИЕ В GRAPHITI: Temporal Knowledge Graph диалогов ===
-            try:
-                if KNOWLEDGE_SEARCH_AVAILABLE:
-                    knowledge_service = get_knowledge_search_service()
-                    if knowledge_service.graphiti_enabled:
-                        # Формируем episode из диалога
-                        user_name_display = user_name or "Пользователь"
-                        episode_content = f"Пользователь ({user_name_display}): {user_message}\n\nАссистент (Анастасия): {bot_response}"
-
-                        # Добавляем episode в knowledge graph
-                        success, episode_id = await knowledge_service.graphiti_service.add_episode(
-                            content=episode_content,
-                            episode_type="conversation",
-                            metadata={
-                                "session_id": session_id,
-                                "user_name": user_name_display,
-                                "timestamp": datetime.utcnow().isoformat()
-                            },
-                            source_description=f"Telegram conversation with {user_name_display}"
-                        )
-
-                        if success:
-                            logger.info(f"✅ Episode сохранён в Graphiti: {episode_id}")
-                        else:
-                            logger.warning(f"⚠️ Не удалось сохранить episode в Graphiti: {episode_id}")
-            except Exception as graphiti_error:
-                # Не критично - если Graphiti недоступен, бот продолжает работать
-                logger.warning(f"⚠️ Graphiti недоступен, диалог не сохранён в knowledge graph: {graphiti_error}")
+            # ВРЕМЕННО ОТКЛЮЧЕНО для отладки - TODO: исправить и включить обратно
+            # try:
+            #     if KNOWLEDGE_SEARCH_AVAILABLE:
+            #         knowledge_service = get_knowledge_search_service()
+            #         if knowledge_service.graphiti_enabled:
+            #             # Формируем episode из диалога
+            #             user_name_display = user_name or "Пользователь"
+            #             episode_content = f"Пользователь ({user_name_display}): {user_message}\n\nАссистент (Анастасия): {bot_response}"
+            #
+            #             # Добавляем episode в knowledge graph
+            #             success, episode_id = await knowledge_service.graphiti_service.add_episode(
+            #                 content=episode_content,
+            #                 episode_type="conversation",
+            #                 metadata={
+            #                     "session_id": session_id,
+            #                     "user_name": user_name_display,
+            #                     "timestamp": datetime.utcnow().isoformat()
+            #                 },
+            #                 source_description=f"Telegram conversation with {user_name_display}"
+            #             )
+            #
+            #             if success:
+            #                 logger.info(f"✅ Episode сохранён в Graphiti: {episode_id}")
+            #             else:
+            #                 logger.warning(f"⚠️ Не удалось сохранить episode в Graphiti: {episode_id}")
+            # except Exception as graphiti_error:
+            #     # Не критично - если Graphiti недоступен, бот продолжает работать
+            #     logger.warning(f"⚠️ Graphiti недоступен, диалог не сохранён в knowledge graph: {graphiti_error}")
 
             return bot_response
 
