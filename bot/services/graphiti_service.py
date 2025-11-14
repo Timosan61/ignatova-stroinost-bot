@@ -31,7 +31,9 @@ from bot.config import (
     NEO4J_USER,
     NEO4J_PASSWORD,
     OPENAI_API_KEY,
-    GRAPHITI_ENABLED
+    GRAPHITI_ENABLED,
+    MODEL_NAME,
+    SMALL_MODEL_NAME
 )
 
 logger = logging.getLogger(__name__)
@@ -75,12 +77,17 @@ class GraphitiService:
 
             # Инициализация Graphiti client
             # Graphiti принимает позиционные аргументы: (uri, user, password)
+            # ВАЖНО: Используем GPT-4o-mini вместо GPT-4o (17x дешевле!)
+            # Graphiti читает MODEL_NAME и SMALL_MODEL_NAME из environment variables
+            os.environ['MODEL_NAME'] = MODEL_NAME
+            os.environ['SMALL_MODEL_NAME'] = SMALL_MODEL_NAME
+
             self.graphiti_client = Graphiti(
                 NEO4J_URI,
                 NEO4J_USER,
                 NEO4J_PASSWORD
             )
-            logger.info("Graphiti client initialized successfully")
+            logger.info(f"Graphiti client initialized successfully (using {MODEL_NAME})")
 
         except Exception as e:
             logger.error(f"Failed to initialize Graphiti service: {e}")

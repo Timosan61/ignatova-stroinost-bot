@@ -16,6 +16,12 @@ NEO4J_USER = os.getenv('NEO4J_USERNAME') or os.getenv('NEO4J_USER', 'neo4j')
 NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', '')
 GRAPHITI_ENABLED = os.getenv('GRAPHITI_ENABLED', 'false').lower() in ('true', '1', 'yes')
 
+# Graphiti LLM Configuration (cost optimization - использовать GPT-4o-mini вместо GPT-4o)
+# MODEL_NAME - основная модель для entity/relationship extraction
+# SMALL_MODEL_NAME - модель для вспомогательных операций (deduplication, summarization)
+MODEL_NAME = os.getenv('MODEL_NAME', 'gpt-4o-mini')
+SMALL_MODEL_NAME = os.getenv('SMALL_MODEL_NAME', 'gpt-4o-mini')
+
 # Абсолютный путь к файлу инструкций
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INSTRUCTION_FILE = os.path.join(BASE_DIR, 'data', 'instruction.json')
