@@ -235,6 +235,11 @@ async def _run_knowledge_loading(
         parsed_dir = Path(__file__).parent.parent.parent / "data" / "parsed_kb"
         checkpoint_file = Path(__file__).parent.parent.parent / "data" / "graphiti_checkpoint.json"
 
+        # КРИТИЧЕСКИ ВАЖНО: Удалить checkpoint если reset_checkpoint=True
+        if reset_checkpoint and checkpoint_file.exists():
+            checkpoint_file.unlink()
+            logger.info(f"🗑️ Checkpoint удалён: {checkpoint_file}")
+
         loader = GraphitiLoader(parsed_dir, checkpoint_file)
 
         # Определяем что загружать
