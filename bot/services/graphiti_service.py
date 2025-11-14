@@ -238,6 +238,37 @@ class GraphitiService:
             logger.error(f"Failed to get graph stats: {e}")
             return {}
 
+    async def entity_exists(self, entity_id: str) -> bool:
+        """
+        Проверить существует ли entity в Neo4j (резервная проверка дубликатов)
+
+        Args:
+            entity_id: Уникальный ID entity из knowledge base
+
+        Returns:
+            True если entity существует в Neo4j, False otherwise
+        """
+        if not self.enabled:
+            return False
+
+        try:
+            with self.neo4j_driver.session() as session:
+                # Ищем Episode node по имени которое содержит entity_id
+                # Graphiti создаёт Episode nodes с именем "{type}_{timestamp}"
+                # Мы ищем по pattern содержащему entity_id
+                result = session.run(
+                    "MATCH (e:Episode) WHERE e.name CONTAINS $entity_id RETURN count(e) AS count",
+                    entity_id=entity_id
+                ).single()
+
+                count = result["count"] if result else 0
+                return count > 0
+
+        except Exception as e:
+            logger.warning(f"Failed to check entity existence for {entity_id}: {e}")
+            # В случае ошибки возвращаем False чтобы не блокировать загрузку
+            return False
+
     async def add_episode(
         self,
         content: str,

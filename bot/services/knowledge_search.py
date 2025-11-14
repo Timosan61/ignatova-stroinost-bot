@@ -19,7 +19,8 @@ from pathlib import Path
 from enum import Enum
 
 from bot.services.graphiti_service import get_graphiti_service
-from bot.config import GRAPHITI_ENABLED
+from bot.services.qdrant_service import get_qdrant_service
+from bot.config import GRAPHITI_ENABLED, USE_QDRANT
 
 logger = logging.getLogger(__name__)
 
@@ -77,13 +78,25 @@ class KnowledgeSearchService:
     """
 
     def __init__(self):
+        # Инициализация обеих систем
         self.graphiti_service = get_graphiti_service()
+        self.qdrant_service = get_qdrant_service()
+
+        # Определение какую систему использовать
+        self.use_qdrant = USE_QDRANT
         self.graphiti_enabled = GRAPHITI_ENABLED and self.graphiti_service.enabled
+        self.qdrant_enabled = USE_QDRANT and self.qdrant_service.enabled
 
         # Paths для fallback
         self.kb_dir = Path(__file__).parent.parent.parent / "KNOWLEDGE_BASE"
 
-        logger.info(f"KnowledgeSearchService initialized (Graphiti: {self.graphiti_enabled})")
+        # Логирование активной системы
+        if self.use_qdrant and self.qdrant_enabled:
+            logger.info("🔵 KnowledgeSearchService initialized (Using: QDRANT)")
+        elif self.graphiti_enabled:
+            logger.info("🟢 KnowledgeSearchService initialized (Using: GRAPHITI)")
+        else:
+            logger.info("⚪ KnowledgeSearchService initialized (Using: FALLBACK - local files)")
 
     async def search(
         self,
@@ -106,9 +119,20 @@ class KnowledgeSearchService:
         """
         logger.info(f"Search query: '{query}' (strategy: {strategy}, limit: {limit})")
 
-        # Если Graphiti недоступен - fallback
-        if not self.graphiti_enabled:
-            logger.warning("Graphiti disabled, using fallback to local files")
+        # Определить какую систему использовать
+        if self.use_qdrant and self.qdrant_enabled:
+            # Использовать Qdrant
+            logger.info("🔵 Using Qdrant for search")
+            if strategy == SearchStrategy.GRAPH:
+                # Qdrant не поддерживает graph traversal - fallback на semantic
+                logger.warning("Qdrant doesn't support graph traversal, using semantic search instead")
+                strategy = SearchStrategy.SEMANTIC
+        elif self.graphiti_enabled:
+            # Использовать Graphiti
+            logger.info("🟢 Using Graphiti for search")
+        else:
+            # Fallback к локальным файлам
+            logger.warning("Both Qdrant and Graphiti disabled, using fallback to local files")
             return await self._search_fallback(query, limit)
 
         # Выполнить поиск по стратегии
@@ -133,29 +157,54 @@ class KnowledgeSearchService:
         limit: int,
         min_relevance: float
     ) -> List[SearchResult]:
-        """Семантический поиск через Graphiti"""
+        """Семантический поиск через Qdrant или Graphiti"""
         try:
-            graphiti_results = await self.graphiti_service.search_semantic(
-                query=query,
-                limit=limit,
-                min_similarity=min_relevance
-            )
-
-            results = []
-            for r in graphiti_results:
-                result = SearchResult(
-                    content=r.get("content", ""),
-                    source=r.get("source", "knowledge_base"),
-                    relevance_score=r.get("similarity", 0.0),
-                    metadata=r.get("metadata", {}),
-                    search_type="semantic"
+            # Переключение между Qdrant и Graphiti
+            if self.use_qdrant and self.qdrant_enabled:
+                # Поиск через Qdrant
+                qdrant_results = await self.qdrant_service.search_semantic(
+                    query=query,
+                    limit=limit,
+                    score_threshold=min_relevance
                 )
-                results.append(result)
 
-            return results
+                results = []
+                for r in qdrant_results:
+                    result = SearchResult(
+                        content=r.get("content", ""),
+                        source=f"qdrant_{r.get('entity_type', 'knowledge')}",
+                        relevance_score=r.get("score", 0.0),
+                        metadata=r.get("metadata", {}),
+                        search_type="semantic_qdrant"
+                    )
+                    results.append(result)
+
+                return results
+
+            else:
+                # Поиск через Graphiti
+                graphiti_results = await self.graphiti_service.search_semantic(
+                    query=query,
+                    limit=limit,
+                    min_similarity=min_relevance
+                )
+
+                results = []
+                for r in graphiti_results:
+                    result = SearchResult(
+                        content=r.get("content", ""),
+                        source=r.get("source", "knowledge_base"),
+                        relevance_score=r.get("similarity", 0.0),
+                        metadata=r.get("metadata", {}),
+                        search_type="semantic_graphiti"
+                    )
+                    results.append(result)
+
+                return results
 
         except Exception as e:
             logger.error(f"Semantic search failed: {e}")
+            logger.exception("Full traceback:")
             return []
 
     async def _search_fulltext(
@@ -189,38 +238,71 @@ class KnowledgeSearchService:
         """
         Гибридный поиск (комбинация semantic + fulltext + graph)
 
+        Для Qdrant: использует search_hybrid() (векторный поиск + фильтры)
+        Для Graphiti: комбинация semantic + fulltext + graph
+
         Веса:
         - Semantic: 1.0 (высший приоритет)
         - Fulltext: 0.8
         - Graph: 0.6
         """
-        all_results = []
+        # Переключение между Qdrant и Graphiti
+        if self.use_qdrant and self.qdrant_enabled:
+            # Qdrant hybrid search (векторный + фильтры)
+            try:
+                qdrant_results = await self.qdrant_service.search_hybrid(
+                    query=query,
+                    limit=limit,
+                    score_threshold=min_relevance,
+                    filters={}  # Можно добавить фильтры если нужно
+                )
 
-        # 1. Semantic search
-        semantic_results = await self._search_semantic(query, limit * 2, min_relevance)
-        for r in semantic_results:
-            r.relevance_score *= 1.0  # Вес semantic
-        all_results.extend(semantic_results)
+                results = []
+                for r in qdrant_results:
+                    result = SearchResult(
+                        content=r.get("content", ""),
+                        source=f"qdrant_{r.get('entity_type', 'knowledge')}",
+                        relevance_score=r.get("score", 0.0),
+                        metadata=r.get("metadata", {}),
+                        search_type="hybrid_qdrant"
+                    )
+                    results.append(result)
 
-        # 2. Fulltext search (когда реализуется)
-        # fulltext_results = await self._search_fulltext(query, limit, min_relevance)
-        # for r in fulltext_results:
-        #     r.relevance_score *= 0.8
-        # all_results.extend(fulltext_results)
+                return results
 
-        # 3. Graph search (когда реализуется)
-        # graph_results = await self._search_graph(query, limit, min_relevance)
-        # for r in graph_results:
-        #     r.relevance_score *= 0.6
-        # all_results.extend(graph_results)
+            except Exception as e:
+                logger.error(f"Qdrant hybrid search failed: {e}")
+                return []
 
-        # Deduplicate (по content hash)
-        unique_results = self._deduplicate_results(all_results)
+        else:
+            # Graphiti hybrid search (semantic + fulltext + graph)
+            all_results = []
 
-        # Sort by relevance
-        unique_results.sort(key=lambda x: x.relevance_score, reverse=True)
+            # 1. Semantic search
+            semantic_results = await self._search_semantic(query, limit * 2, min_relevance)
+            for r in semantic_results:
+                r.relevance_score *= 1.0  # Вес semantic
+            all_results.extend(semantic_results)
 
-        return unique_results[:limit]
+            # 2. Fulltext search (когда реализуется для Graphiti)
+            # fulltext_results = await self._search_fulltext(query, limit, min_relevance)
+            # for r in fulltext_results:
+            #     r.relevance_score *= 0.8
+            # all_results.extend(fulltext_results)
+
+            # 3. Graph search (когда реализуется для Graphiti)
+            # graph_results = await self._search_graph(query, limit, min_relevance)
+            # for r in graph_results:
+            #     r.relevance_score *= 0.6
+            # all_results.extend(graph_results)
+
+            # Deduplicate (по content hash)
+            unique_results = self._deduplicate_results(all_results)
+
+            # Sort by relevance
+            unique_results.sort(key=lambda x: x.relevance_score, reverse=True)
+
+            return unique_results[:limit]
 
     def _deduplicate_results(self, results: List[SearchResult]) -> List[SearchResult]:
         """Удалить дубликаты результатов"""

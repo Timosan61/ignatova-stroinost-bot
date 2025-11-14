@@ -84,11 +84,11 @@ def init_db():
 
     try:
         # Import models to register them with Base
-        from bot.database.models import TelegramChat, TelegramMessage
+        from bot.database.models import TelegramChat, TelegramMessage, GraphitiCheckpoint
 
         # Create all tables
         Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created successfully")
+        logger.info("Database tables created successfully (including graphiti_checkpoint)")
 
     except Exception as e:
         logger.error(f"Error initializing database: {e}")

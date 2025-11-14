@@ -22,6 +22,13 @@ GRAPHITI_ENABLED = os.getenv('GRAPHITI_ENABLED', 'false').lower() in ('true', '1
 MODEL_NAME = os.getenv('MODEL_NAME', 'gpt-4o-mini')
 SMALL_MODEL_NAME = os.getenv('SMALL_MODEL_NAME', 'gpt-4o-mini')
 
+# Qdrant Vector Database Configuration
+QDRANT_URL = os.getenv('QDRANT_URL', '')
+QDRANT_API_KEY = os.getenv('QDRANT_API_KEY', '')
+QDRANT_COLLECTION = os.getenv('QDRANT_COLLECTION', 'course_knowledge')
+EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
+USE_QDRANT = os.getenv('USE_QDRANT', 'false').lower() in ('true', '1', 'yes')
+
 # Абсолютный путь к файлу инструкций
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INSTRUCTION_FILE = os.path.join(BASE_DIR, 'data', 'instruction.json')
@@ -61,3 +68,12 @@ if GRAPHITI_ENABLED:
         print("⚠️ Graphiti включен, но Neo4j не настроен (NEO4J_URI/NEO4J_PASSWORD не заданы)")
 else:
     print("❌ Graphiti Knowledge Graph отключен (GRAPHITI_ENABLED=false)")
+
+# Информация о статусе Qdrant Vector Database
+if USE_QDRANT:
+    if QDRANT_URL and QDRANT_API_KEY:
+        print("🔵 Qdrant Vector Database включен (USE_QDRANT=true, Qdrant Cloud configured)")
+    else:
+        print("⚠️ Qdrant включен, но не настроен (QDRANT_URL/QDRANT_API_KEY не заданы)")
+else:
+    print("⚪ Qdrant Vector Database отключен (USE_QDRANT=false)")

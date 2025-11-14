@@ -112,3 +112,34 @@ class TelegramMessage(Base):
 
     def __repr__(self):
         return f"<TelegramMessage(id={self.id}, chat_id={self.chat_id}, is_voice={self.is_voice_message})>"
+
+
+class GraphitiCheckpoint(Base):
+    """
+    Checkpoint table for Graphiti knowledge base loading.
+    Stores which entities have been loaded to survive Railway restarts.
+    """
+    __tablename__ = "graphiti_checkpoint"
+
+    # Primary key - entity ID from parsed knowledge base
+    entity_id = Column(String(255), primary_key=True, comment="Unique entity ID from knowledge base")
+
+    # Entity metadata
+    entity_type = Column(String(50), nullable=False, index=True, comment="Entity type: FAQ, Lesson, Correction, Question, Brainwrite")
+    episode_id = Column(String(255), nullable=True, comment="Episode ID in Neo4j/Graphiti")
+
+    # Loading metadata
+    tier = Column(Integer, nullable=True, comment="Tier number (1=FAQ, 2=Lessons, 3=Questions)")
+    batch_number = Column(Integer, nullable=True, comment="Batch number in which entity was loaded")
+
+    # Timestamps
+    loaded_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True, comment="When entity was loaded to Neo4j")
+
+    # Indexes for performance
+    __table_args__ = (
+        Index('idx_type_loaded', 'entity_type', 'loaded_at'),
+        Index('idx_tier_batch', 'tier', 'batch_number'),
+    )
+
+    def __repr__(self):
+        return f"<GraphitiCheckpoint(entity_id={self.entity_id}, type={self.entity_type}, loaded_at={self.loaded_at})>"

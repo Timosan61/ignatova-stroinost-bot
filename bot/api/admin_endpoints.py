@@ -233,14 +233,17 @@ async def _run_knowledge_loading(
 
         # Инициализируем GraphitiLoader с путями
         parsed_dir = Path(__file__).parent.parent.parent / "data" / "parsed_kb"
-        checkpoint_file = Path(__file__).parent.parent.parent / "data" / "graphiti_checkpoint.json"
 
-        # КРИТИЧЕСКИ ВАЖНО: Удалить checkpoint если reset_checkpoint=True
-        if reset_checkpoint and checkpoint_file.exists():
-            checkpoint_file.unlink()
-            logger.info(f"🗑️ Checkpoint удалён: {checkpoint_file}")
+        # КРИТИЧЕСКИ ВАЖНО: Очистить MySQL checkpoint если reset_checkpoint=True
+        if reset_checkpoint:
+            from bot.services.graphiti_checkpoint_service import get_checkpoint_service
+            checkpoint_service = get_checkpoint_service()
+            if checkpoint_service.clear_all():
+                logger.info(f"🗑️ MySQL Checkpoint очищен")
+            else:
+                logger.warning("⚠️ Не удалось очистить checkpoint (БД недоступна?)")
 
-        loader = GraphitiLoader(parsed_dir, checkpoint_file)
+        loader = GraphitiLoader(parsed_dir, tier=tier)
 
         # Определяем что загружать
         tiers_to_load = []
@@ -574,3 +577,227 @@ async def get_graphiti_config():
             status_code=500,
             detail=f"Config check failed: {str(e)}"
         )
+
+
+# ==================== QDRANT ENDPOINTS ====================
+
+_qdrant_migration_status = {
+    "is_migrating": False,
+    "started_at": None,
+    "progress": 0,
+    "total": 0,
+    "errors": [],
+    "completed_at": None,
+    "stats": {}
+}
+
+
+class QdrantMigrateRequest(BaseModel):
+    """Запрос на миграцию в Qdrant"""
+    batch_size: int = 50
+    reset: bool = False
+
+
+class QdrantMigrateResponse(BaseModel):
+    """Ответ миграции в Qdrant"""
+    success: bool
+    message: str
+    started_at: Optional[str] = None
+
+
+@router.get("/qdrant/health")
+async def qdrant_health():
+    """
+    Проверка здоровья Qdrant service
+
+    Returns:
+        Dict с информацией о статусе Qdrant
+    """
+    try:
+        from bot.services.qdrant_service import get_qdrant_service
+
+        qdrant_service = get_qdrant_service()
+        health = await qdrant_service.health_check()
+
+        return health
+
+    except Exception as e:
+        logger.error(f"Qdrant health check failed: {e}")
+        return {
+            "service": "qdrant",
+            "status": "error",
+            "enabled": False,
+            "error": str(e)
+        }
+
+
+@router.get("/qdrant/stats")
+async def qdrant_stats():
+    """
+    Получить статистику Qdrant collection
+
+    Returns:
+        Dict со статистикой (количество points, vectors и т.д.)
+    """
+    try:
+        from bot.services.qdrant_service import get_qdrant_service
+
+        qdrant_service = get_qdrant_service()
+        stats = await qdrant_service.get_stats()
+
+        return {
+            "status": "ok",
+            "stats": stats,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get Qdrant stats: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Stats failed: {str(e)}"
+        )
+
+
+@router.post("/qdrant/migrate", response_model=QdrantMigrateResponse)
+async def migrate_to_qdrant(
+    request: QdrantMigrateRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Запустить миграцию данных в Qdrant
+
+    Args:
+        request: Параметры миграции (batch_size, reset)
+
+    Returns:
+        Response с информацией о запуске миграции
+    """
+    global _qdrant_migration_status
+
+    # Проверка что миграция не запущена
+    if _qdrant_migration_status["is_migrating"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Migration already in progress"
+        )
+
+    try:
+        # Запуск миграции в background
+        background_tasks.add_task(
+            _run_qdrant_migration,
+            batch_size=request.batch_size,
+            reset=request.reset
+        )
+
+        _qdrant_migration_status["is_migrating"] = True
+        _qdrant_migration_status["started_at"] = datetime.utcnow().isoformat()
+        _qdrant_migration_status["errors"] = []
+
+        return QdrantMigrateResponse(
+            success=True,
+            message="Migration started in background",
+            started_at=_qdrant_migration_status["started_at"]
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to start Qdrant migration: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Migration start failed: {str(e)}"
+        )
+
+
+@router.get("/qdrant/migrate_status")
+async def get_qdrant_migrate_status():
+    """
+    Получить статус миграции
+
+    Returns:
+        Dict со статусом миграции (progress, errors и т.д.)
+    """
+    return {
+        "status": "ok",
+        "migration": _qdrant_migration_status,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/qdrant/search_test")
+async def qdrant_search_test(query: str, limit: int = 5):
+    """
+    Тестовый поиск в Qdrant
+
+    Args:
+        query: Поисковый запрос
+        limit: Максимальное количество результатов
+
+    Returns:
+        Dict с результатами поиска
+    """
+    try:
+        from bot.services.qdrant_service import get_qdrant_service
+
+        qdrant_service = get_qdrant_service()
+        results = await qdrant_service.search_semantic(
+            query=query,
+            limit=limit
+        )
+
+        return {
+            "status": "ok",
+            "query": query,
+            "limit": limit,
+            "results_count": len(results),
+            "results": results,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Qdrant search test failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Search test failed: {str(e)}"
+        )
+
+
+async def _run_qdrant_migration(batch_size: int, reset: bool):
+    """
+    Background task для миграции в Qdrant
+
+    Args:
+        batch_size: Размер batch для upload
+        reset: Сбросить checkpoint и начать с нуля
+    """
+    global _qdrant_migration_status
+
+    try:
+        # Импортируем migrate скрипт
+        from migrate_to_qdrant import QdrantMigration
+
+        kb_dir = Path(__file__).parent.parent.parent / "KNOWLEDGE_BASE"
+
+        migration = QdrantMigration(
+            kb_dir=kb_dir,
+            batch_size=batch_size
+        )
+
+        # Запуск миграции
+        await migration.migrate(reset=reset)
+
+        # Обновляем статус
+        _qdrant_migration_status["is_migrating"] = False
+        _qdrant_migration_status["completed_at"] = datetime.utcnow().isoformat()
+        _qdrant_migration_status["stats"] = migration.stats
+
+        logger.info("✅ Qdrant migration completed successfully")
+
+    except Exception as e:
+        logger.error(f"❌ Qdrant migration failed: {e}")
+        logger.exception("Full traceback:")
+
+        _qdrant_migration_status["is_migrating"] = False
+        _qdrant_migration_status["errors"].append({
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        })

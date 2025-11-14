@@ -43,6 +43,7 @@ root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
 
 from bot.services.graphiti_service import get_graphiti_service
+from bot.services.graphiti_checkpoint_service import get_checkpoint_service
 from bot.models.knowledge_entities import (
     FAQEntry,
     CourseLesson,
@@ -57,14 +58,15 @@ logger = logging.getLogger(__name__)
 
 
 class GraphitiLoader:
-    """Загрузчик базы знаний в Graphiti"""
+    """Загрузчик базы знаний в Graphiti с MySQL checkpoint"""
 
-    def __init__(self, parsed_dir: Path, checkpoint_file: Path):
+    def __init__(self, parsed_dir: Path, tier: Optional[int] = None, batch_number: int = 0):
         self.parsed_dir = parsed_dir
-        self.checkpoint_file = checkpoint_file
+        self.tier = tier
+        self.batch_number = batch_number
         self.graphiti_service = get_graphiti_service()
+        self.checkpoint_service = get_checkpoint_service()
 
-        self.loaded_ids = set()
         self.stats = {
             "total": 0,
             "success": 0,
@@ -72,42 +74,44 @@ class GraphitiLoader:
             "skipped": 0
         }
 
-        # Загрузить checkpoint
-        self.load_checkpoint()
+        # Загрузить checkpoint statistics из MySQL
+        checkpoint_stats = self.checkpoint_service.get_stats()
+        logger.info(f"📂 MySQL Checkpoint loaded: {checkpoint_stats['total']} entities already loaded")
+        if checkpoint_stats['by_type']:
+            for entity_type, count in checkpoint_stats['by_type'].items():
+                logger.info(f"   - {entity_type}: {count}")
 
-    def load_checkpoint(self):
-        """Загрузить checkpoint (какие entities уже загружены)"""
-        if self.checkpoint_file.exists():
-            with open(self.checkpoint_file, 'r') as f:
-                data = json.load(f)
-                self.loaded_ids = set(data.get("loaded_ids", []))
-                logger.info(f"📂 Checkpoint loaded: {len(self.loaded_ids)} entities already loaded")
-
-    def save_checkpoint(self):
-        """Сохранить checkpoint"""
-        self.checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.checkpoint_file, 'w') as f:
-            json.dump({
-                "loaded_ids": list(self.loaded_ids),
-                "timestamp": datetime.utcnow().isoformat(),
-                "stats": self.stats
-            }, f, indent=2)
-
-    async def load_entity(self, entity: Any, entity_id: str, max_retries: int = 10) -> bool:
+    async def load_entity(self, entity: Any, entity_id: str, entity_type: str, max_retries: int = 10) -> bool:
         """
-        Загрузить один entity в Graphiti
+        Загрузить один entity в Graphiti с двойной проверкой дубликатов
 
         Args:
             entity: Pydantic entity
             entity_id: Уникальный ID
+            entity_type: Тип entity (для checkpoint)
             max_retries: Количество попыток (увеличено до 10 для Neo4j token refresh)
 
         Returns:
             True if success, False otherwise
         """
-        # Проверить если уже загружен
-        if entity_id in self.loaded_ids:
+        # ДВОЙНАЯ ПРОВЕРКА ДУБЛИКАТОВ:
+        # 1. Проверить MySQL checkpoint (быстро)
+        if self.checkpoint_service.is_loaded(entity_id):
             self.stats["skipped"] += 1
+            return True
+
+        # 2. Проверить Neo4j (резервная проверка, на случай если checkpoint потерян)
+        entity_exists = await self.graphiti_service.entity_exists(entity_id)
+        if entity_exists:
+            # Entity есть в Neo4j но нет в checkpoint - добавим в checkpoint
+            self.checkpoint_service.mark_loaded(
+                entity_id=entity_id,
+                entity_type=entity_type,
+                tier=self.tier,
+                batch_number=self.batch_number
+            )
+            self.stats["skipped"] += 1
+            logger.debug(f"Entity {entity_id} found in Neo4j but not in checkpoint - updated checkpoint")
             return True
 
         # Конвертировать в Episode content
@@ -125,7 +129,14 @@ class GraphitiLoader:
                 )
 
                 if success:
-                    self.loaded_ids.add(entity_id)
+                    # Сохранить в MySQL checkpoint
+                    self.checkpoint_service.mark_loaded(
+                        entity_id=entity_id,
+                        entity_type=entity_type,
+                        episode_id=result,
+                        tier=self.tier,
+                        batch_number=self.batch_number
+                    )
                     self.stats["success"] += 1
                     return True
                 else:
@@ -172,7 +183,7 @@ class GraphitiLoader:
 
         Args:
             entities: List of parsed entities
-            entity_type: Type name (для логов)
+            entity_type: Type name (для логов и checkpoint)
             batch_size: Размер batch
         """
         logger.info(f"\n📦 Loading {len(entities)} {entity_type} entities...")
@@ -182,12 +193,15 @@ class GraphitiLoader:
 
         for i in range(0, len(entities), batch_size):
             batch = entities[i:i + batch_size]
+            batch_num = i // batch_size
+            self.batch_number = batch_num
 
             # Параллельная загрузка в batch
             tasks = []
             for idx, entity in enumerate(batch):
                 entity_id = f"{entity_type}_{i + idx}"
-                tasks.append(self.load_entity(entity, entity_id))
+                # Передаём entity_type для checkpoint
+                tasks.append(self.load_entity(entity, entity_id, entity_type))
 
             # Ждем завершения всех tasks в batch
             await asyncio.gather(*tasks)
@@ -195,14 +209,12 @@ class GraphitiLoader:
             # Update progress
             pbar.update(len(batch))
 
-            # Сохранить checkpoint каждые N batches
-            if (i // batch_size) % 5 == 0:
-                self.save_checkpoint()
+            # MySQL checkpoint сохраняется автоматически в load_entity()
+            logger.debug(f"Batch {batch_num} completed ({i + len(batch)}/{len(entities)})")
 
         pbar.close()
 
-        # Финальный checkpoint
-        self.save_checkpoint()
+        logger.info(f"✅ Finished loading {entity_type}: {self.stats['success']} success, {self.stats['skipped']} skipped, {self.stats['failed']} failed")
 
     async def load_tier(self, tier: int, batch_size: int = 50):
         """
@@ -317,13 +329,12 @@ async def main():
     parser.add_argument("--tier", type=int, choices=[1, 2, 3], help="Load specific tier (1=FAQ, 2=Lessons+Corrections, 3=Questions+Brainwrites)")
     parser.add_argument("--all", action="store_true", help="Load all tiers")
     parser.add_argument("--batch-size", type=int, default=50, help="Batch size (default: 50)")
-    parser.add_argument("--reset-checkpoint", action="store_true", help="Reset checkpoint (start from scratch)")
+    parser.add_argument("--reset-checkpoint", action="store_true", help="Reset MySQL checkpoint (start from scratch)")
 
     args = parser.parse_args()
 
     # Paths
     parsed_dir = root_dir / "data" / "parsed_kb"
-    checkpoint_file = root_dir / "data" / "graphiti_checkpoint.json"
 
     # Check parsed data exists
     if not parsed_dir.exists():
@@ -332,12 +343,15 @@ async def main():
         return
 
     # Reset checkpoint if requested
-    if args.reset_checkpoint and checkpoint_file.exists():
-        checkpoint_file.unlink()
-        logger.info("🗑️ Checkpoint reset")
+    if args.reset_checkpoint:
+        checkpoint_service = get_checkpoint_service()
+        if checkpoint_service.clear_all():
+            logger.info("🗑️ MySQL checkpoint reset - all entries cleared")
+        else:
+            logger.warning("⚠️ Failed to reset checkpoint (database might be disabled)")
 
-    # Initialize loader
-    loader = GraphitiLoader(parsed_dir, checkpoint_file)
+    # Initialize loader with tier (will be updated for each tier)
+    loader = GraphitiLoader(parsed_dir, tier=args.tier)
 
     # Check Graphiti service
     if not loader.graphiti_service.enabled:

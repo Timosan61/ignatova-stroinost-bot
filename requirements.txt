@@ -9,6 +9,8 @@ anthropic==0.57.0
 zep-cloud==2.14.1
 graphiti-core==0.18.9
 neo4j>=5.0.0
+qdrant-client>=1.7.0
+sentence-transformers>=2.2.0
 
 # Web Framework
 fastapi==0.110.0
