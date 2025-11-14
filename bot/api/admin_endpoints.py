@@ -209,14 +209,7 @@ async def _run_knowledge_loading(
             entity_counts["questions"] = 0
             logger.warning(f"⚠️ parsed_questions.json not found")
 
-        # Brainwrites
-        brainwrites_file = parsed_dir / "parsed_brainwrites.json"
-        if brainwrites_file.exists():
-            with open(brainwrites_file, 'r', encoding='utf-8') as f:
-                entity_counts["brainwrites"] = len(json.load(f))
-        else:
-            entity_counts["brainwrites"] = 0
-            logger.warning(f"⚠️ parsed_brainwrites.json not found")
+        # Note: Brainwrites excluded - student examples may not follow exact methodology
 
         total_entities = sum(entity_counts.values())
         _load_status["total"] = total_entities
@@ -226,7 +219,6 @@ async def _run_knowledge_loading(
         logger.info(f"  - Lessons: {entity_counts['lessons']}")
         logger.info(f"  - Corrections: {entity_counts['corrections']}")
         logger.info(f"  - Questions: {entity_counts['questions']}")
-        logger.info(f"  - Brainwrites: {entity_counts['brainwrites']}")
 
         # ШАГИ 2: Загрузка в Graphiti
         logger.info("🔄 Шаг 2: Загрузка в Neo4j/Graphiti...")
@@ -270,7 +262,7 @@ async def _run_knowledge_loading(
             elif tier_num == 2:
                 _load_status["progress"] += entity_counts["lessons"] + entity_counts["corrections"]
             elif tier_num == 3:
-                _load_status["progress"] += entity_counts["questions"] + entity_counts["brainwrites"]
+                _load_status["progress"] += entity_counts["questions"]
 
         # Завершение
         _load_status["is_loading"] = False

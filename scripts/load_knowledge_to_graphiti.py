@@ -49,7 +49,6 @@ from bot.models.knowledge_entities import (
     CourseLesson,
     CuratorCorrection,
     StudentQuestion,
-    BrainwriteExample,
     create_episode_metadata
 )
 
@@ -272,8 +271,8 @@ class GraphitiLoader:
                 logger.warning(f"⚠️ Corrections file not found: {corrections_file}")
 
         elif tier == 3:
-            # Tier 3: Questions + Brainwrites
-            logger.info("\n💬 TIER 3: Loading Questions + Brainwrites")
+            # Tier 3: Questions only (Brainwrites excluded)
+            logger.info("\n💬 TIER 3: Loading Questions")
 
             # Student Questions
             questions_file = self.parsed_dir / "parsed_questions.json"
@@ -287,17 +286,7 @@ class GraphitiLoader:
             else:
                 logger.warning(f"⚠️ Questions file not found: {questions_file}")
 
-            # Brainwrite Examples
-            brainwrites_file = self.parsed_dir / "parsed_brainwrites.json"
-            if brainwrites_file.exists():
-                with open(brainwrites_file, 'r', encoding='utf-8') as f:
-                    brainwrites_data = json.load(f)
-
-                entities = [BrainwriteExample(**item) for item in brainwrites_data]
-                self.stats["total"] += len(entities)
-                await self.load_batch(entities, "Brainwrite", batch_size)
-            else:
-                logger.warning(f"⚠️ Brainwrites file not found: {brainwrites_file}")
+            # Note: Brainwrite Examples excluded - student examples may not follow exact methodology
 
         else:
             logger.error(f"❌ Invalid tier: {tier}. Must be 1, 2, or 3")
