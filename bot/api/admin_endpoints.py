@@ -516,3 +516,56 @@ async def debug_indices(
             status_code=500,
             detail=f"Debug failed: {str(e)}"
         )
+
+
+@router.get("/graphiti_config")
+async def get_graphiti_config():
+    """
+    Проверить конфигурацию Graphiti LLM модели
+
+    Returns:
+        Dict с информацией о настройках MODEL_NAME и SMALL_MODEL_NAME
+    """
+    try:
+        model_name = os.getenv("MODEL_NAME", "NOT_SET")
+        small_model_name = os.getenv("SMALL_MODEL_NAME", "NOT_SET")
+
+        # Определяем используется ли GPT-4o-mini
+        is_optimized = (
+            model_name == "gpt-4o-mini" and
+            small_model_name == "gpt-4o-mini"
+        )
+
+        return {
+            "status": "ok",
+            "config": {
+                "MODEL_NAME": model_name,
+                "SMALL_MODEL_NAME": small_model_name
+            },
+            "optimization": {
+                "enabled": is_optimized,
+                "description": (
+                    "✅ Cost optimized (GPT-4o-mini)" if is_optimized
+                    else "⚠️ Using default GPT-4o (expensive)"
+                ),
+                "cost_savings": "15-17x cheaper" if is_optimized else "N/A"
+            },
+            "pricing": {
+                "gpt-4o": {
+                    "input": "$2.50 per 1M tokens",
+                    "output": "$10.00 per 1M tokens"
+                },
+                "gpt-4o-mini": {
+                    "input": "$0.15 per 1M tokens",
+                    "output": "$0.60 per 1M tokens"
+                }
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to get Graphiti config: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Config check failed: {str(e)}"
+        )
