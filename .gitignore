@@ -57,8 +57,9 @@ temp/
 
 # Large knowledge base files (>100MB)
 KNOWLEDGE_BASE/parsed_chats.json
+
+# Generated full files (these can be regenerated from source)
 KNOWLEDGE_BASE/*_FULL.json
-KNOWLEDGE_BASE/*_ALL.json
 
 # Parsed knowledge base data (generated files)
 
