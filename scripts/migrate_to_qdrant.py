@@ -184,7 +184,7 @@ class QdrantMigration:
                     "metadata": {
                         "category": faq.category,
                         "keywords": faq.keywords,
-                        "importance": faq.importance
+                        "frequency": faq.frequency
                     }
                 }
                 all_entities.append(entity)
