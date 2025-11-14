@@ -231,8 +231,10 @@ async def debug_env():
 @app.get("/webhook/set")
 async def set_webhook():
     """Установка webhook"""
-    webhook_url = os.getenv('WEBHOOK_URL', 'https://ignatova-stroinost-bot-production.up.railway.app/webhook')
-    
+    webhook_base = os.getenv('WEBHOOK_URL', 'https://ignatova-stroinost-bot-production.up.railway.app')
+    # Убедимся что URL правильный (с /webhook на конце)
+    webhook_url = f"{webhook_base}/webhook" if not webhook_base.endswith('/webhook') else webhook_base
+
     try:
         success = bot.set_webhook(
             url=webhook_url,
@@ -312,11 +314,13 @@ async def startup():
         logger.info("⚠️ База данных отключена (DATABASE_URL не настроен)")
 
     # Автоматическая установка webhook при запуске
-    webhook_url = os.getenv('WEBHOOK_URL')
-    if webhook_url:
+    webhook_base = os.getenv('WEBHOOK_URL')
+    if webhook_base:
+        # Убедимся что URL правильный (с /webhook на конце)
+        webhook_url = f"{webhook_base}/webhook" if not webhook_base.endswith('/webhook') else webhook_base
         try:
             success = bot.set_webhook(
-                url=f"{webhook_url}/webhook",
+                url=webhook_url,
                 secret_token=WEBHOOK_SECRET_TOKEN,
                 allowed_updates=[
                     "message",
