@@ -170,11 +170,13 @@ class KnowledgeSearchService:
 
                 results = []
                 for r in qdrant_results:
+                    # Merge entity_type into metadata for debug info
+                    metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "unknown")}
                     result = SearchResult(
                         content=r.get("content", ""),
                         source=f"qdrant_{r.get('entity_type', 'knowledge')}",
                         relevance_score=r.get("score", 0.0),
-                        metadata=r.get("metadata", {}),
+                        metadata=metadata,
                         search_type="semantic_qdrant"
                     )
                     results.append(result)
