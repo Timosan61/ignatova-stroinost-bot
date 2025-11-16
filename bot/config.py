@@ -12,7 +12,7 @@ BOT_USERNAME = os.getenv('BOT_USERNAME')
 # FalkorDB & Graphiti Configuration (496x faster than Neo4j!)
 FALKORDB_HOST = os.getenv('FALKORDB_HOST', 'localhost')
 FALKORDB_PORT = int(os.getenv('FALKORDB_PORT', '6379'))
-FALKORDB_USERNAME = os.getenv('FALKORDB_USERNAME', 'default')
+FALKORDB_USERNAME = os.getenv('FALKORDB_USERNAME', 'falkordb')  # Default username для FalkorDB Cloud
 FALKORDB_PASSWORD = os.getenv('FALKORDB_PASSWORD', '')
 FALKORDB_DATABASE = os.getenv('FALKORDB_DATABASE', 'knowledge_graph')
 
@@ -34,6 +34,9 @@ QDRANT_API_KEY = os.getenv('QDRANT_API_KEY', '')
 QDRANT_COLLECTION = os.getenv('QDRANT_COLLECTION', 'course_knowledge')
 EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
 USE_QDRANT = os.getenv('USE_QDRANT', 'false').lower() in ('true', '1', 'yes')
+
+# Knowledge Search Configuration
+SEARCH_LIMIT = int(os.getenv('SEARCH_LIMIT', '10'))  # Количество результатов из базы знаний
 
 # Абсолютный путь к файлу инструкций
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

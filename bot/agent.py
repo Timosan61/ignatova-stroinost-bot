@@ -10,8 +10,9 @@ from zep_cloud.client import AsyncZep
 from zep_cloud.types import Message
 
 from .config import (
-    INSTRUCTION_FILE, OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENAI_MODEL, 
-    ANTHROPIC_MODEL, ZEP_API_KEY, VOICE_ENABLED, TELEGRAM_BOT_TOKEN
+    INSTRUCTION_FILE, OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENAI_MODEL,
+    ANTHROPIC_MODEL, ZEP_API_KEY, VOICE_ENABLED, TELEGRAM_BOT_TOKEN,
+    SEARCH_LIMIT
 )
 
 # Опциональный импорт голосового сервиса
@@ -389,7 +390,7 @@ class TextilProAgent:
 
             # Ищем релевантную информацию в базе знаний
             logger.info(f"🔎 Вызов search_knowledge_base() для запроса: '{user_message[:50]}...'")
-            knowledge_context, sources_used, search_results = await self.search_knowledge_base(user_message, limit=3)
+            knowledge_context, sources_used, search_results = await self.search_knowledge_base(user_message, limit=SEARCH_LIMIT)
             logger.info(f"✅ Поиск завершён: context={len(knowledge_context)} символов, sources={len(sources_used)}, results={len(search_results)}")
 
             # Пытаемся получить контекст из Zep Memory
@@ -508,7 +509,19 @@ class TextilProAgent:
                               (zep_history and len(str(zep_history).strip()) > 0)
                     debug_info += f"🧠 Zep Memory: {'✅ Да' if has_zep else '❌ Нет'}\n"
                     debug_info += f"🤖 Model: {getattr(self, 'current_model', 'unknown')}\n"
-                    debug_info += f"📏 Context length: {len(knowledge_context)} chars\n"
+
+                    # Правильный расчет ПОЛНОГО контекста (system + knowledge + zep + user)
+                    total_context_length = (
+                        len(system_prompt) +
+                        len(user_message) +
+                        len(knowledge_context) +
+                        len(zep_context or "") +
+                        len(zep_history or "")
+                    )
+
+                    # Детальная разбивка контекста
+                    context_breakdown = f"System:{len(system_prompt)} | Knowledge:{len(knowledge_context)} | Zep:{len(zep_context or '') + len(zep_history or '')} | User:{len(user_message)}"
+                    debug_info += f"📏 Total Context: {total_context_length:,} chars ({context_breakdown})\n"
 
                     bot_response += debug_info
 
