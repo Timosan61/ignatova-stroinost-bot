@@ -313,7 +313,10 @@ class KnowledgeSearchService:
         """
         Гибридный поиск (комбинация semantic + fulltext + graph)
 
-        Для Qdrant: использует search_hybrid() (векторный поиск + фильтры)
+        Для Qdrant: multi-stage search с entity_type приоритизацией
+        - Приоритизация: lessons (1.5x) > corrections (1.2x) > FAQ (1.0x)
+        - Brainwrites и questions ИСКЛЮЧЕНЫ из основного поиска
+
         Для Graphiti: комбинация semantic + fulltext + graph
 
         Веса:
@@ -323,27 +326,86 @@ class KnowledgeSearchService:
         """
         # Переключение между Qdrant и Graphiti
         if self.use_qdrant and self.qdrant_enabled:
-            # Qdrant hybrid search (векторный + фильтры)
+            # Qdrant multi-stage search с приоритизацией
             try:
-                qdrant_results = await self.qdrant_service.search_hybrid(
+                all_results = []
+
+                # ЭТАП 1: Поиск в УРОКАХ (highest priority)
+                logger.info(f"🔍 Hybrid: Этап 1 - Поиск в уроках (lessons)...")
+                lesson_results = await self.qdrant_service.search_semantic(
                     query=query,
                     limit=limit,
                     score_threshold=min_relevance,
-                    filters={}  # Можно добавить фильтры если нужно
+                    entity_type="lesson"
                 )
 
-                results = []
-                for r in qdrant_results:
+                for r in lesson_results:
+                    boosted_score = r.get("score", 0.0) * 1.5
+                    metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "lesson")}
                     result = SearchResult(
                         content=r.get("content", ""),
-                        source=f"qdrant_{r.get('entity_type', 'knowledge')}",
-                        relevance_score=r.get("score", 0.0),
-                        metadata=r.get("metadata", {}),
-                        search_type="hybrid_qdrant"
+                        source=f"qdrant_{r.get('entity_type', 'lesson')}",
+                        relevance_score=boosted_score,
+                        metadata=metadata,
+                        search_type="hybrid_qdrant_prioritized"
                     )
-                    results.append(result)
+                    all_results.append(result)
 
-                return results
+                logger.info(f"  ✅ Найдено {len(lesson_results)} lessons (boosted 1.5x)")
+
+                # ЭТАП 2: Поиск в КОРРЕКТИРОВКАХ КУРАТОРА (medium priority)
+                logger.info(f"🔍 Hybrid: Этап 2 - Поиск в корректировках (corrections)...")
+                correction_results = await self.qdrant_service.search_semantic(
+                    query=query,
+                    limit=limit,
+                    score_threshold=min_relevance,
+                    entity_type="correction"
+                )
+
+                for r in correction_results:
+                    boosted_score = r.get("score", 0.0) * 1.2
+                    metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "correction")}
+                    result = SearchResult(
+                        content=r.get("content", ""),
+                        source=f"qdrant_{r.get('entity_type', 'correction')}",
+                        relevance_score=boosted_score,
+                        metadata=metadata,
+                        search_type="hybrid_qdrant_prioritized"
+                    )
+                    all_results.append(result)
+
+                logger.info(f"  ✅ Найдено {len(correction_results)} corrections (boosted 1.2x)")
+
+                # ЭТАП 3: Поиск в FAQ (если ещё нужно результатов)
+                if len(all_results) < limit:
+                    logger.info(f"🔍 Hybrid: Этап 3 - Поиск в FAQ...")
+                    faq_results = await self.qdrant_service.search_semantic(
+                        query=query,
+                        limit=limit - len(all_results),
+                        score_threshold=min_relevance,
+                        entity_type="faq"
+                    )
+
+                    for r in faq_results:
+                        metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "faq")}
+                        result = SearchResult(
+                            content=r.get("content", ""),
+                            source=f"qdrant_{r.get('entity_type', 'faq')}",
+                            relevance_score=r.get("score", 0.0),
+                            metadata=metadata,
+                            search_type="hybrid_qdrant_prioritized"
+                        )
+                        all_results.append(result)
+
+                    logger.info(f"  ✅ Найдено {len(faq_results)} FAQ")
+
+                # NOTE: Brainwrites и questions ИСКЛЮЧЕНЫ из основного поиска!
+                logger.info(f"⚠️ Hybrid: Brainwrites и questions исключены (могут содержать ошибки)")
+
+                # Сортировка по relevance score (уже с учётом boost)
+                all_results.sort(key=lambda x: x.relevance_score, reverse=True)
+
+                return all_results[:limit]
 
             except Exception as e:
                 logger.error(f"Qdrant hybrid search failed: {e}")
