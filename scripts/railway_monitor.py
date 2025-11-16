@@ -122,6 +122,7 @@ def get_deployment_info(deployment_id: str) -> Optional[Dict]:
 
 def get_service_vars() -> Dict[str, str]:
     """Получить переменные окружения сервиса"""
+    # Сначала получаем environmentId
     query = f"""
     query {{
         service(id: "{SERVICE_ID}") {{
@@ -142,7 +143,40 @@ def get_service_vars() -> Dict[str, str]:
     """
 
     data = railway_query(query)
-    return data.get('service', {})
+    service = data.get('service', {})
+
+    # Получаем первый environment ID
+    instances = service.get('serviceInstances', {}).get('edges', [])
+    if not instances:
+        return {}
+
+    environment_id = instances[0]['node']['environmentId']
+
+    # Запрашиваем переменные для этого environment
+    vars_query = f"""
+    query {{
+        variables(
+            environmentId: "{environment_id}",
+            serviceId: "{SERVICE_ID}"
+        ) {{
+            edges {{
+                node {{
+                    name
+                    value
+                }}
+            }}
+        }}
+    }}
+    """
+
+    vars_data = railway_query(vars_query)
+    variables = {}
+
+    for edge in vars_data.get('variables', {}).get('edges', []):
+        node = edge['node']
+        variables[node['name']] = node['value']
+
+    return variables
 
 def format_status(status: str) -> str:
     """Форматировать статус с цветом"""

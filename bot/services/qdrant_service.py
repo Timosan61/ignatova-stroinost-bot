@@ -96,7 +96,7 @@ class QdrantService:
             logger.exception("Full traceback:")
             self.enabled = False
 
-    def _get_encoder(self) -> SentenceTransformer:
+    def _get_encoder(self) -> "SentenceTransformer":
         """
         Lazy loading для sentence transformer модели
 

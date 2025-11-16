@@ -793,3 +793,97 @@ async def _run_qdrant_migration(batch_size: int, reset: bool):
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat()
         })
+
+
+# ============================================================================
+# DEBUG ENDPOINT: Test Search
+# ============================================================================
+
+class TestSearchRequest(BaseModel):
+    query: str
+    limit: int = 3
+    min_relevance: float = 0.5
+
+
+@router.post("/test_search")
+async def test_search(request: TestSearchRequest):
+    """
+    Тестовый endpoint для диагностики поиска по базе знаний
+    
+    Возвращает детальную информацию о результатах поиска:
+    - Какая система используется (Qdrant/Graphiti)
+    - Найденные результаты с relevance scores
+    - Почему бот может возвращать fallback ответ
+    """
+    try:
+        from bot.services.knowledge_search import get_knowledge_search_service, SearchStrategy
+        
+        knowledge_service = get_knowledge_search_service()
+        
+        # Информация о системе
+        system_info = {
+            "use_qdrant": knowledge_service.use_qdrant,
+            "qdrant_enabled": knowledge_service.qdrant_enabled,
+            "graphiti_enabled": knowledge_service.graphiti_enabled
+        }
+        
+        active_system = None
+        if knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
+            active_system = "QDRANT"
+        elif knowledge_service.graphiti_enabled:
+            active_system = "GRAPHITI"
+        else:
+            active_system = "NONE"
+        
+        # Выполняем поиск
+        strategy = knowledge_service.route_query(request.query)
+        
+        search_results = await knowledge_service.search(
+            query=request.query,
+            strategy=strategy,
+            limit=request.limit,
+            min_relevance=request.min_relevance
+        )
+        
+        # Форматируем результаты
+        results_formatted = []
+        if search_results:
+            for result in search_results:
+                results_formatted.append({
+                    "relevance_score": result.relevance_score,
+                    "source": result.source,
+                    "content_preview": result.content[:200] + "..." if len(result.content) > 200 else result.content,
+                    "metadata": result.metadata
+                })
+        
+        # Объяснение почему может быть fallback
+        fallback_reason = None
+        if not search_results:
+            if active_system == "NONE":
+                fallback_reason = "Ни одна система поиска не доступна (Graphiti/Qdrant отключены или не установлены)"
+            else:
+                fallback_reason = f"Поиск через {active_system} не нашел результатов с relevance >= {request.min_relevance}"
+        
+        return {
+            "success": True,
+            "query": request.query,
+            "system_info": system_info,
+            "active_system": active_system,
+            "strategy_used": strategy.value if strategy else None,
+            "min_relevance": request.min_relevance,
+            "results_count": len(search_results),
+            "results": results_formatted,
+            "fallback_reason": fallback_reason,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Test search failed: {e}")
+        logger.exception("Full traceback:")
+        
+        return {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "timestamp": datetime.utcnow().isoformat()
+        }
