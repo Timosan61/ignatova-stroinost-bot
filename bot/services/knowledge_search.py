@@ -157,31 +157,104 @@ class KnowledgeSearchService:
         limit: int,
         min_relevance: float
     ) -> List[SearchResult]:
-        """Семантический поиск через Qdrant или Graphiti"""
+        """
+        Семантический поиск через Qdrant или Graphiti
+
+        Приоритизация entity types для мозгоритмов:
+        1. Lessons (boost 1.5x) - методология мозгоритмов
+        2. Corrections (boost 1.2x) - стиль и примеры фраз
+        3. FAQ - ответы на вопросы
+        4. Brainwrites ИСКЛЮЧЕНЫ из основного поиска (могут содержать ошибки)
+        """
         try:
             # Переключение между Qdrant и Graphiti
             if self.use_qdrant and self.qdrant_enabled:
-                # Поиск через Qdrant
-                qdrant_results = await self.qdrant_service.search_semantic(
+                # Многоступенчатый поиск с приоритизацией
+                all_results = []
+
+                # ЭТАП 1: Поиск в УРОКАХ (highest priority)
+                logger.info(f"🔍 Этап 1: Поиск в уроках (lessons)...")
+                lesson_results = await self.qdrant_service.search_semantic(
                     query=query,
                     limit=limit,
-                    score_threshold=min_relevance
+                    score_threshold=min_relevance,
+                    entity_type="lesson"  # Фильтр по типу!
                 )
 
-                results = []
-                for r in qdrant_results:
-                    # Merge entity_type into metadata for debug info
-                    metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "unknown")}
+                for r in lesson_results:
+                    # Score boost для уроков
+                    boosted_score = r.get("score", 0.0) * 1.5
+                    metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "lesson")}
                     result = SearchResult(
                         content=r.get("content", ""),
-                        source=f"qdrant_{r.get('entity_type', 'knowledge')}",
-                        relevance_score=r.get("score", 0.0),
+                        source=f"qdrant_{r.get('entity_type', 'lesson')}",
+                        relevance_score=boosted_score,
                         metadata=metadata,
-                        search_type="semantic_qdrant"
+                        search_type="semantic_qdrant_prioritized"
                     )
-                    results.append(result)
+                    all_results.append(result)
 
-                return results
+                logger.info(f"  ✅ Найдено {len(lesson_results)} lessons (boosted score 1.5x)")
+
+                # ЭТАП 2: Поиск в КОРРЕКТИРОВКАХ КУРАТОРА (medium priority)
+                logger.info(f"🔍 Этап 2: Поиск в корректировках куратора (corrections)...")
+                correction_results = await self.qdrant_service.search_semantic(
+                    query=query,
+                    limit=limit,
+                    score_threshold=min_relevance,
+                    entity_type="correction"
+                )
+
+                for r in correction_results:
+                    # Score boost для корректировок
+                    boosted_score = r.get("score", 0.0) * 1.2
+                    metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "correction")}
+                    result = SearchResult(
+                        content=r.get("content", ""),
+                        source=f"qdrant_{r.get('entity_type', 'correction')}",
+                        relevance_score=boosted_score,
+                        metadata=metadata,
+                        search_type="semantic_qdrant_prioritized"
+                    )
+                    all_results.append(result)
+
+                logger.info(f"  ✅ Найдено {len(correction_results)} corrections (boosted score 1.2x)")
+
+                # ЭТАП 3: Поиск в FAQ (если недостаточно уроков и корректировок)
+                if len(all_results) < limit:
+                    logger.info(f"🔍 Этап 3: Поиск в FAQ...")
+                    faq_results = await self.qdrant_service.search_semantic(
+                        query=query,
+                        limit=limit - len(all_results),
+                        score_threshold=min_relevance,
+                        entity_type="faq"
+                    )
+
+                    for r in faq_results:
+                        metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "faq")}
+                        result = SearchResult(
+                            content=r.get("content", ""),
+                            source=f"qdrant_{r.get('entity_type', 'faq')}",
+                            relevance_score=r.get("score", 0.0),
+                            metadata=metadata,
+                            search_type="semantic_qdrant_prioritized"
+                        )
+                        all_results.append(result)
+
+                    logger.info(f"  ✅ Найдено {len(faq_results)} FAQ")
+
+                # NOTE: Brainwrites ИСКЛЮЧЕНЫ из основного поиска!
+                # Они используются ТОЛЬКО если явно запрошены отдельным методом
+                logger.info(f"⚠️ Brainwrites исключены из основного поиска (могут содержать ошибки)")
+
+                # Сортируем по boosted relevance score
+                all_results.sort(key=lambda x: x.relevance_score, reverse=True)
+
+                # Возвращаем top N результатов
+                final_results = all_results[:limit]
+                logger.info(f"📊 Итого найдено: {len(final_results)} результатов (lessons: {len(lesson_results)}, corrections: {len(correction_results)})")
+
+                return final_results
 
             else:
                 # Поиск через Graphiti
