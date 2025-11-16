@@ -172,101 +172,75 @@ class KnowledgeSearchService:
         min_relevance: float
     ) -> List[SearchResult]:
         """
-        Семантический поиск через Qdrant или Graphiti
+        Unified семантический поиск через Qdrant или Graphiti
 
-        Приоритизация entity types для мозгоритмов:
-        1. Lessons (boost 1.5x) - методология мозгоритмов
-        2. Corrections (boost 1.2x) - стиль и примеры фраз
-        3. FAQ - ответы на вопросы
-        4. Brainwrites ИСКЛЮЧЕНЫ из основного поиска (могут содержать ошибки)
+        Ищет по ВСЕЙ базе знаний без entity_type фильтрации.
+        Qdrant/Graphiti возвращают самые релевантные результаты с учётом semantic similarity.
+
+        Опциональный score boosting для приоритизации типов:
+        - Lessons (1.2x) - методология курса
+        - FAQ (1.1x) - часто задаваемые вопросы
+        - Corrections/Questions (1.0x) - корректировки и вопросы учениц
+        - Brainwrites (0.9x) - примеры студентов (могут содержать ошибки)
         """
         try:
             # Переключение между Qdrant и Graphiti
             if self.use_qdrant and self.qdrant_enabled:
-                # Многоступенчатый поиск с приоритизацией
+                # Unified search по всей базе знаний (БЕЗ entity_type фильтрации)
+                logger.info(f"🔍 Unified search по всей базе знаний...")
+
+                # Единый запрос к Qdrant без фильтрации по entity_type
+                raw_results = await self.qdrant_service.search_semantic(
+                    query=query,
+                    limit=limit * 2,  # Берём в 2 раза больше для последующей фильтрации
+                    score_threshold=min_relevance,
+                    entity_type=None  # ❌ Убрали entity_type фильтр!
+                )
+
+                # Опциональный score boosting для приоритизации типов
+                boosting_factors = {
+                    "lesson": 1.2,      # Уроки немного важнее
+                    "faq": 1.1,         # FAQ тоже важны
+                    "correction": 1.0,  # Нейтральный приоритет
+                    "question": 1.0,    # Вопросы учениц - наравне с corrections
+                    "brainwrite": 0.9   # Примеры студентов - чуть ниже (могут содержать ошибки)
+                }
+
                 all_results = []
+                entity_type_counts = {}
 
-                # ЭТАП 1: Поиск в УРОКАХ (highest priority)
-                logger.info(f"🔍 Этап 1: Поиск в уроках (lessons)...")
-                lesson_results = await self.qdrant_service.search_semantic(
-                    query=query,
-                    limit=limit,
-                    score_threshold=min_relevance,
-                    entity_type="lesson"  # Фильтр по типу!
-                )
+                for r in raw_results:
+                    entity_type = r.get("metadata", {}).get("entity_type", "unknown")
+                    boost_factor = boosting_factors.get(entity_type, 1.0)
+                    boosted_score = r.get("score", 0.0) * boost_factor
 
-                for r in lesson_results:
-                    # Score boost для уроков
-                    boosted_score = r.get("score", 0.0) * 1.5
-                    metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "lesson")}
+                    metadata = {**r.get("metadata", {}), "entity_type": entity_type}
                     result = SearchResult(
                         content=r.get("content", ""),
-                        source=f"qdrant_{r.get('entity_type', 'lesson')}",
+                        source=f"qdrant_{entity_type}",
                         relevance_score=boosted_score,
                         metadata=metadata,
-                        search_type="semantic_qdrant_prioritized"
+                        search_type="unified_qdrant"
                     )
                     all_results.append(result)
 
-                logger.info(f"  ✅ Найдено {len(lesson_results)} lessons (boosted score 1.5x)")
-
-                # ЭТАП 2: Поиск в КОРРЕКТИРОВКАХ КУРАТОРА (medium priority)
-                logger.info(f"🔍 Этап 2: Поиск в корректировках куратора (corrections)...")
-                correction_results = await self.qdrant_service.search_semantic(
-                    query=query,
-                    limit=limit,
-                    score_threshold=min_relevance,
-                    entity_type="correction"
-                )
-
-                for r in correction_results:
-                    # Score boost для корректировок
-                    boosted_score = r.get("score", 0.0) * 1.2
-                    metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "correction")}
-                    result = SearchResult(
-                        content=r.get("content", ""),
-                        source=f"qdrant_{r.get('entity_type', 'correction')}",
-                        relevance_score=boosted_score,
-                        metadata=metadata,
-                        search_type="semantic_qdrant_prioritized"
-                    )
-                    all_results.append(result)
-
-                logger.info(f"  ✅ Найдено {len(correction_results)} corrections (boosted score 1.2x)")
-
-                # ЭТАП 3: Поиск в FAQ (если недостаточно уроков и корректировок)
-                if len(all_results) < limit:
-                    logger.info(f"🔍 Этап 3: Поиск в FAQ...")
-                    faq_results = await self.qdrant_service.search_semantic(
-                        query=query,
-                        limit=limit - len(all_results),
-                        score_threshold=min_relevance,
-                        entity_type="faq"
-                    )
-
-                    for r in faq_results:
-                        metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "faq")}
-                        result = SearchResult(
-                            content=r.get("content", ""),
-                            source=f"qdrant_{r.get('entity_type', 'faq')}",
-                            relevance_score=r.get("score", 0.0),
-                            metadata=metadata,
-                            search_type="semantic_qdrant_prioritized"
-                        )
-                        all_results.append(result)
-
-                    logger.info(f"  ✅ Найдено {len(faq_results)} FAQ")
-
-                # NOTE: Brainwrites ИСКЛЮЧЕНЫ из основного поиска!
-                # Они используются ТОЛЬКО если явно запрошены отдельным методом
-                logger.info(f"⚠️ Brainwrites исключены из основного поиска (могут содержать ошибки)")
+                    # Статистика по типам
+                    entity_type_counts[entity_type] = entity_type_counts.get(entity_type, 0) + 1
 
                 # Сортируем по boosted relevance score
                 all_results.sort(key=lambda x: x.relevance_score, reverse=True)
 
                 # Возвращаем top N результатов
                 final_results = all_results[:limit]
-                logger.info(f"📊 Итого найдено: {len(final_results)} результатов (lessons: {len(lesson_results)}, corrections: {len(correction_results)})")
+
+                # Статистика по типам в финальных результатах
+                final_type_counts = {}
+                for r in final_results:
+                    entity_type = r.metadata.get("entity_type", "unknown")
+                    final_type_counts[entity_type] = final_type_counts.get(entity_type, 0) + 1
+
+                types_str = ', '.join([f"{k}:{v}" for k, v in final_type_counts.items()])
+                logger.info(f"✅ Unified search: найдено {len(final_results)} результатов ({types_str})")
 
                 return final_results
 
@@ -371,101 +345,73 @@ class KnowledgeSearchService:
         min_relevance: float
     ) -> List[SearchResult]:
         """
-        Гибридный поиск (комбинация semantic + fulltext + graph)
+        Unified гибридный поиск через Qdrant или Graphiti
 
-        Для Qdrant: multi-stage search с entity_type приоритизацией
-        - Приоритизация: lessons (1.5x) > corrections (1.2x) > FAQ (1.0x)
-        - Brainwrites и questions ИСКЛЮЧЕНЫ из основного поиска
+        Для Qdrant: Unified search по всей базе знаний без entity_type фильтрации
+        - Score boosting: lessons (1.2x), FAQ (1.1x), corrections/questions (1.0x), brainwrites (0.9x)
+        - Qdrant сам определяет самые релевантные результаты на основе semantic similarity
 
         Для Graphiti: комбинация semantic + fulltext + graph
-
-        Веса:
         - Semantic: 1.0 (высший приоритет)
         - Fulltext: 0.8
         - Graph: 0.6
         """
         # Переключение между Qdrant и Graphiti
         if self.use_qdrant and self.qdrant_enabled:
-            # Qdrant multi-stage search с приоритизацией
+            # Unified hybrid search по всей базе знаний
             try:
+                logger.info(f"🔍 Unified hybrid search по всей базе знаний...")
+
+                # Единый запрос к Qdrant без фильтрации по entity_type
+                raw_results = await self.qdrant_service.search_semantic(
+                    query=query,
+                    limit=limit * 2,  # Берём в 2 раза больше для последующей фильтрации
+                    score_threshold=min_relevance,
+                    entity_type=None  # ❌ Убрали entity_type фильтр!
+                )
+
+                # Опциональный score boosting для приоритизации типов
+                boosting_factors = {
+                    "lesson": 1.2,      # Уроки немного важнее
+                    "faq": 1.1,         # FAQ тоже важны
+                    "correction": 1.0,  # Нейтральный приоритет
+                    "question": 1.0,    # Вопросы учениц - наравне с corrections
+                    "brainwrite": 0.9   # Примеры студентов - чуть ниже (могут содержать ошибки)
+                }
+
                 all_results = []
 
-                # ЭТАП 1: Поиск в УРОКАХ (highest priority)
-                logger.info(f"🔍 Hybrid: Этап 1 - Поиск в уроках (lessons)...")
-                lesson_results = await self.qdrant_service.search_semantic(
-                    query=query,
-                    limit=limit,
-                    score_threshold=min_relevance,
-                    entity_type="lesson"
-                )
+                for r in raw_results:
+                    entity_type = r.get("metadata", {}).get("entity_type", "unknown")
+                    boost_factor = boosting_factors.get(entity_type, 1.0)
+                    boosted_score = r.get("score", 0.0) * boost_factor
 
-                for r in lesson_results:
-                    boosted_score = r.get("score", 0.0) * 1.5
-                    metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "lesson")}
+                    metadata = {**r.get("metadata", {}), "entity_type": entity_type}
                     result = SearchResult(
                         content=r.get("content", ""),
-                        source=f"qdrant_{r.get('entity_type', 'lesson')}",
+                        source=f"qdrant_{entity_type}",
                         relevance_score=boosted_score,
                         metadata=metadata,
-                        search_type="hybrid_qdrant_prioritized"
+                        search_type="unified_hybrid"
                     )
                     all_results.append(result)
 
-                logger.info(f"  ✅ Найдено {len(lesson_results)} lessons (boosted 1.5x)")
-
-                # ЭТАП 2: Поиск в КОРРЕКТИРОВКАХ КУРАТОРА (medium priority)
-                logger.info(f"🔍 Hybrid: Этап 2 - Поиск в корректировках (corrections)...")
-                correction_results = await self.qdrant_service.search_semantic(
-                    query=query,
-                    limit=limit,
-                    score_threshold=min_relevance,
-                    entity_type="correction"
-                )
-
-                for r in correction_results:
-                    boosted_score = r.get("score", 0.0) * 1.2
-                    metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "correction")}
-                    result = SearchResult(
-                        content=r.get("content", ""),
-                        source=f"qdrant_{r.get('entity_type', 'correction')}",
-                        relevance_score=boosted_score,
-                        metadata=metadata,
-                        search_type="hybrid_qdrant_prioritized"
-                    )
-                    all_results.append(result)
-
-                logger.info(f"  ✅ Найдено {len(correction_results)} corrections (boosted 1.2x)")
-
-                # ЭТАП 3: Поиск в FAQ (если ещё нужно результатов)
-                if len(all_results) < limit:
-                    logger.info(f"🔍 Hybrid: Этап 3 - Поиск в FAQ...")
-                    faq_results = await self.qdrant_service.search_semantic(
-                        query=query,
-                        limit=limit - len(all_results),
-                        score_threshold=min_relevance,
-                        entity_type="faq"
-                    )
-
-                    for r in faq_results:
-                        metadata = {**r.get("metadata", {}), "entity_type": r.get("entity_type", "faq")}
-                        result = SearchResult(
-                            content=r.get("content", ""),
-                            source=f"qdrant_{r.get('entity_type', 'faq')}",
-                            relevance_score=r.get("score", 0.0),
-                            metadata=metadata,
-                            search_type="hybrid_qdrant_prioritized"
-                        )
-                        all_results.append(result)
-
-                    logger.info(f"  ✅ Найдено {len(faq_results)} FAQ")
-
-                # NOTE: Brainwrites и questions ИСКЛЮЧЕНЫ из основного поиска!
-                logger.info(f"⚠️ Hybrid: Brainwrites и questions исключены (могут содержать ошибки)")
-
-                # Сортировка по relevance score (уже с учётом boost)
+                # Сортировка по relevance score (с учётом boost)
                 all_results.sort(key=lambda x: x.relevance_score, reverse=True)
 
-                return all_results[:limit]
+                # Возвращаем top N результатов
+                final_results = all_results[:limit]
+
+                # Статистика по типам в финальных результатах
+                final_type_counts = {}
+                for r in final_results:
+                    entity_type = r.metadata.get("entity_type", "unknown")
+                    final_type_counts[entity_type] = final_type_counts.get(entity_type, 0) + 1
+
+                types_str = ', '.join([f"{k}:{v}" for k, v in final_type_counts.items()])
+                logger.info(f"✅ Unified hybrid: найдено {len(final_results)} результатов ({types_str})")
+
+                return final_results
 
             except Exception as e:
                 logger.error(f"Qdrant hybrid search failed: {e}")

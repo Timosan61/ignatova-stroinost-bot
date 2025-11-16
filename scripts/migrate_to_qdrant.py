@@ -244,8 +244,8 @@ class QdrantMigration:
         # 4. Parse Student Questions
         questions_file = self.kb_dir / "student_questions_ALL.json"
         if questions_file.exists():
-            logger.info("📖 Parsing Student Questions...")
-            questions = parser.parse_questions(questions_file, sample_limit=500)
+            logger.info("📖 Parsing Student Questions (ALL 2,636 questions)...")
+            questions = parser.parse_questions(questions_file, sample_limit=None)  # Load ALL questions!
             for question in questions:
                 entity = {
                     "id": entity_id,  # Qdrant requires integer or UUID, not string
