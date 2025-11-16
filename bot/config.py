@@ -9,9 +9,15 @@ ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
 ZEP_API_KEY = os.getenv('ZEP_API_KEY', '').strip()  # Strip whitespace and newlines
 BOT_USERNAME = os.getenv('BOT_USERNAME')
 
-# Neo4j & Graphiti Configuration
+# FalkorDB & Graphiti Configuration (496x faster than Neo4j!)
+FALKORDB_HOST = os.getenv('FALKORDB_HOST', 'localhost')
+FALKORDB_PORT = int(os.getenv('FALKORDB_PORT', '6379'))
+FALKORDB_USERNAME = os.getenv('FALKORDB_USERNAME', 'default')
+FALKORDB_PASSWORD = os.getenv('FALKORDB_PASSWORD', '')
+FALKORDB_DATABASE = os.getenv('FALKORDB_DATABASE', 'knowledge_graph')
+
+# Legacy Neo4j support (deprecated, use FalkorDB instead)
 NEO4J_URI = os.getenv('NEO4J_URI', '')
-# Поддержка обоих вариантов: NEO4J_USERNAME (Railway default) и NEO4J_USER
 NEO4J_USER = os.getenv('NEO4J_USERNAME') or os.getenv('NEO4J_USER', 'neo4j')
 NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', '')
 GRAPHITI_ENABLED = os.getenv('GRAPHITI_ENABLED', 'false').lower() in ('true', '1', 'yes')
@@ -62,10 +68,12 @@ else:
 
 # Информация о статусе Graphiti Knowledge Graph
 if GRAPHITI_ENABLED:
-    if NEO4J_URI and NEO4J_PASSWORD:
-        print("✅ Graphiti Knowledge Graph включен (GRAPHITI_ENABLED=true, Neo4j configured)")
+    if FALKORDB_HOST and FALKORDB_PASSWORD:
+        print(f"✅ Graphiti Knowledge Graph включен (GRAPHITI_ENABLED=true, FalkorDB: {FALKORDB_HOST}:{FALKORDB_PORT})")
+    elif NEO4J_URI and NEO4J_PASSWORD:
+        print("⚠️ Graphiti включен с legacy Neo4j (рекомендуется переключиться на FalkorDB)")
     else:
-        print("⚠️ Graphiti включен, но Neo4j не настроен (NEO4J_URI/NEO4J_PASSWORD не заданы)")
+        print("⚠️ Graphiti включен, но FalkorDB не настроен (FALKORDB_HOST/FALKORDB_PASSWORD не заданы)")
 else:
     print("❌ Graphiti Knowledge Graph отключен (GRAPHITI_ENABLED=false)")
 

@@ -18,7 +18,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 from enum import Enum
 
-from bot.services.graphiti_service import get_graphiti_service
+from bot.services.falkordb_service import get_falkordb_service  # FalkorDB (496x faster than Neo4j!)
 from bot.services.qdrant_service import get_qdrant_service
 from bot.config import GRAPHITI_ENABLED, USE_QDRANT
 
@@ -79,12 +79,12 @@ class KnowledgeSearchService:
 
     def __init__(self):
         # Инициализация обеих систем
-        self.graphiti_service = get_graphiti_service()
+        self.falkordb_service = get_falkordb_service()  # FalkorDB (496x faster!)
         self.qdrant_service = get_qdrant_service()
 
         # Определение какую систему использовать
         self.use_qdrant = USE_QDRANT
-        self.graphiti_enabled = GRAPHITI_ENABLED and self.graphiti_service.enabled
+        self.graphiti_enabled = GRAPHITI_ENABLED and self.falkordb_service.enabled
         self.qdrant_enabled = USE_QDRANT and self.qdrant_service.enabled
 
         # Paths для fallback
@@ -257,11 +257,11 @@ class KnowledgeSearchService:
                 return final_results
 
             else:
-                # Поиск через Graphiti
-                graphiti_results = await self.graphiti_service.search_semantic(
+                # Поиск через FalkorDB (Graphiti backend)
+                graphiti_results = await self.falkordb_service.search_semantic(
                     query=query,
                     limit=limit,
-                    min_similarity=min_relevance
+                    min_relevance=min_relevance  # Note: параметр переименован
                 )
 
                 results = []

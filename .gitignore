@@ -57,11 +57,16 @@ temp/
 
 # Large knowledge base files (>100MB)
 KNOWLEDGE_BASE/parsed_chats.json
+Analitics/parsed_chats.json
+*.json.large
 
 # Generated full files (these can be regenerated from source)
 KNOWLEDGE_BASE/*_FULL.json
+**/*_FULL.json
+**/*_ALL.json
 
 # Parsed knowledge base data (generated files)
+Analitics/*.json
 
 # Neo4j and backup credentials
 .env.neo4j

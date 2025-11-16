@@ -322,16 +322,25 @@ class TextilProAgent:
         # Сначала пробуем OpenAI
         if self.openai_client:
             try:
-                logger.info("🤖 Пытаемся использовать OpenAI")
+                logger.info(f"🤖 Пытаемся использовать OpenAI (модель: {OPENAI_MODEL})")
                 response = await self.openai_client.chat.completions.create(
-                    model=OPENAI_MODEL,
+                    model=OPENAI_MODEL,  # Явно фиксируем gpt-4o
                     messages=messages,
                     max_tokens=max_tokens,
                     temperature=temperature
                 )
+
+                # КРИТИЧЕСКИ ВАЖНО: Логируем фактически использованную модель
+                actual_model = response.model
+                logger.info(f"📊 Запрошенная модель: {OPENAI_MODEL}")
+                logger.info(f"📊 Фактическая модель: {actual_model}")
+
+                if OPENAI_MODEL != actual_model:
+                    logger.warning(f"⚠️ НЕСООТВЕТСТВИЕ МОДЕЛЕЙ! Запрошена '{OPENAI_MODEL}', но использована '{actual_model}'")
+
                 result = response.choices[0].message.content
-                self.current_model = OPENAI_MODEL  # Track which model was used
-                logger.info("✅ OpenAI ответ получен")
+                self.current_model = actual_model  # Track actual model used
+                logger.info(f"✅ OpenAI ответ получен (модель: {actual_model}, tokens: {response.usage.total_tokens})")
                 return result
                 
             except Exception as e:
