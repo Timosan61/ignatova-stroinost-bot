@@ -236,18 +236,24 @@ async def set_webhook():
     webhook_url = f"{webhook_base}/webhook" if not webhook_base.endswith('/webhook') else webhook_base
 
     try:
-        success = bot.set_webhook(
-            url=webhook_url,
-            secret_token=WEBHOOK_SECRET_TOKEN,
-            allowed_updates=[
-                "message", 
-                "business_connection", 
-                "business_message",
-                "edited_business_message", 
-                "deleted_business_messages"
-            ]
+        # ВАЖНО: не используем secret_token - telegram-bot библиотека не работает с ним
+        import requests
+        response = requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
+            json={
+                "url": webhook_url,
+                "allowed_updates": [
+                    "message",
+                    "business_connection",
+                    "business_message",
+                    "edited_business_message",
+                    "deleted_business_messages"
+                ]
+            }
         )
-        
+        result = response.json()
+        success = result.get("ok", False)
+
         if success:
             logger.info(f"✅ Webhook установлен: {webhook_url}")
             return {
@@ -319,19 +325,20 @@ async def startup():
         # Убедимся что URL правильный (с /webhook на конце)
         webhook_url = f"{webhook_base}/webhook" if not webhook_base.endswith('/webhook') else webhook_base
         try:
-            success = bot.set_webhook(
-                url=webhook_url,
-                secret_token=WEBHOOK_SECRET_TOKEN,
-                allowed_updates=[
-                    "message",
-                    "business_connection",
-                    "business_message"
-                ]
+            # ВАЖНО: не используем secret_token - telegram-bot библиотека не работает с ним
+            import requests
+            response = requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
+                json={
+                    "url": webhook_url,
+                    "allowed_updates": ["message", "business_connection", "business_message"]
+                }
             )
-            if success:
-                logger.info(f"✅ Webhook автоматически установлен: {webhook_url}/webhook")
+            result = response.json()
+            if result.get("ok"):
+                logger.info(f"✅ Webhook автоматически установлен: {webhook_url}")
             else:
-                logger.warning("⚠️ Не удалось автоматически установить webhook")
+                logger.warning(f"⚠️ Не удалось автоматически установить webhook: {result}")
         except Exception as e:
             logger.error(f"❌ Ошибка автоустановки webhook: {e}")
 
