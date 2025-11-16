@@ -81,14 +81,15 @@ class KnowledgeSearchService:
 
     def __init__(self):
         # Инициализация всех систем
-        self.falkordb_service = get_falkordb_service()  # FalkorDB с Graphiti (если работает)
-        self.simple_falkordb_service = get_simple_falkordb_service()  # SimpleFalkorDB (без Graphiti)
+        # FalkorDB временно отключен - требует graphiti-core[falkordb]
+        self.falkordb_service = None  # get_falkordb_service()
+        self.simple_falkordb_service = None  # get_simple_falkordb_service()
         self.qdrant_service = get_qdrant_service()
 
         # Определение какую систему использовать
         self.use_qdrant = USE_QDRANT
-        self.use_simple_falkordb = GRAPHITI_ENABLED and self.simple_falkordb_service.enabled
-        self.graphiti_enabled = GRAPHITI_ENABLED and self.falkordb_service.enabled
+        self.use_simple_falkordb = False  # GRAPHITI_ENABLED and self.simple_falkordb_service.enabled
+        self.graphiti_enabled = False  # GRAPHITI_ENABLED and self.falkordb_service.enabled
         self.qdrant_enabled = USE_QDRANT and self.qdrant_service.enabled
 
         # Paths для fallback
