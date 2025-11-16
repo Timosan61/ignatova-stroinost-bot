@@ -255,7 +255,8 @@ class QdrantService:
                 query_vector=query_vector,
                 limit=limit,
                 score_threshold=score_threshold,
-                query_filter=search_filter
+                query_filter=search_filter,
+                with_payload=True  # КРИТИЧЕСКИ ВАЖНО: без этого payload=None!
             )
 
             # Форматируем результаты
@@ -344,7 +345,8 @@ class QdrantService:
                 query_vector=query_vector,
                 limit=limit,
                 score_threshold=score_threshold,
-                query_filter=search_filter
+                query_filter=search_filter,
+                with_payload=True  # КРИТИЧЕСКИ ВАЖНО: без этого payload=None!
             )
 
             # Форматируем результаты
