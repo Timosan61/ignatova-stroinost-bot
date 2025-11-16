@@ -261,13 +261,24 @@ class QdrantService:
             # Форматируем результаты
             results = []
             for hit in search_result:
+                # DEBUG: детальное логирование структуры hit для диагностики
+                logger.info(f"🔍 DEBUG hit: type={type(hit).__name__}")
+                logger.info(f"   hit.id={hit.id}, hit.score={hit.score}")
+                logger.info(f"   hit.payload type={type(hit.payload)}, len={len(hit.payload) if hit.payload else 0}")
+                if hit.payload:
+                    logger.info(f"   hit.payload.keys()={list(hit.payload.keys())}")
+                    entity_type_value = hit.payload.get("entity_type", "NOT_FOUND")
+                    logger.info(f"   entity_type = '{entity_type_value}'")
+                else:
+                    logger.warning(f"   ⚠️ hit.payload is None!")
+
                 result = {
                     "id": str(hit.id),
                     "score": hit.score,
-                    "entity_type": hit.payload.get("entity_type", "unknown"),
-                    "title": hit.payload.get("title", ""),
-                    "content": hit.payload.get("content", ""),
-                    "metadata": hit.payload.get("metadata", {})
+                    "entity_type": hit.payload.get("entity_type", "unknown") if hit.payload else "unknown",
+                    "title": hit.payload.get("title", "") if hit.payload else "",
+                    "content": hit.payload.get("content", "") if hit.payload else "",
+                    "metadata": hit.payload.get("metadata", {}) if hit.payload else {}
                 }
                 results.append(result)
 
@@ -339,13 +350,24 @@ class QdrantService:
             # Форматируем результаты
             results = []
             for hit in search_result:
+                # DEBUG: детальное логирование структуры hit для диагностики
+                logger.info(f"🔍 DEBUG hit: type={type(hit).__name__}")
+                logger.info(f"   hit.id={hit.id}, hit.score={hit.score}")
+                logger.info(f"   hit.payload type={type(hit.payload)}, len={len(hit.payload) if hit.payload else 0}")
+                if hit.payload:
+                    logger.info(f"   hit.payload.keys()={list(hit.payload.keys())}")
+                    entity_type_value = hit.payload.get("entity_type", "NOT_FOUND")
+                    logger.info(f"   entity_type = '{entity_type_value}'")
+                else:
+                    logger.warning(f"   ⚠️ hit.payload is None!")
+
                 result = {
                     "id": str(hit.id),
                     "score": hit.score,
-                    "entity_type": hit.payload.get("entity_type", "unknown"),
-                    "title": hit.payload.get("title", ""),
-                    "content": hit.payload.get("content", ""),
-                    "metadata": hit.payload.get("metadata", {})
+                    "entity_type": hit.payload.get("entity_type", "unknown") if hit.payload else "unknown",
+                    "title": hit.payload.get("title", "") if hit.payload else "",
+                    "content": hit.payload.get("content", "") if hit.payload else "",
+                    "metadata": hit.payload.get("metadata", {}) if hit.payload else {}
                 }
                 results.append(result)
 
