@@ -18,7 +18,9 @@ from typing import List, Dict, Any, Optional, Tuple
 from pathlib import Path
 from enum import Enum
 
-from bot.services.falkordb_service import get_falkordb_service  # FalkorDB (496x faster than Neo4j!)
+# FalkorDB imports закомментированы - требуют graphiti-core[falkordb]
+# from bot.services.falkordb_service import get_falkordb_service  # FalkorDB (496x faster than Neo4j!)
+# from bot.services.simple_falkordb_service import get_simple_falkordb_service  # SimpleFalkorDB (без Graphiti)
 from bot.services.qdrant_service import get_qdrant_service
 from bot.config import GRAPHITI_ENABLED, USE_QDRANT
 
@@ -78,12 +80,14 @@ class KnowledgeSearchService:
     """
 
     def __init__(self):
-        # Инициализация обеих систем
-        self.falkordb_service = get_falkordb_service()  # FalkorDB (496x faster!)
+        # Инициализация всех систем
+        self.falkordb_service = get_falkordb_service()  # FalkorDB с Graphiti (если работает)
+        self.simple_falkordb_service = get_simple_falkordb_service()  # SimpleFalkorDB (без Graphiti)
         self.qdrant_service = get_qdrant_service()
 
         # Определение какую систему использовать
         self.use_qdrant = USE_QDRANT
+        self.use_simple_falkordb = GRAPHITI_ENABLED and self.simple_falkordb_service.enabled
         self.graphiti_enabled = GRAPHITI_ENABLED and self.falkordb_service.enabled
         self.qdrant_enabled = USE_QDRANT and self.qdrant_service.enabled
 
@@ -93,6 +97,8 @@ class KnowledgeSearchService:
         # Логирование активной системы
         if self.use_qdrant and self.qdrant_enabled:
             logger.info("🔵 KnowledgeSearchService initialized (Using: QDRANT)")
+        elif self.use_simple_falkordb:
+            logger.info("🟠 KnowledgeSearchService initialized (Using: SimpleFalkorDB)")
         elif self.graphiti_enabled:
             logger.info("🟢 KnowledgeSearchService initialized (Using: GRAPHITI)")
         else:
@@ -127,12 +133,19 @@ class KnowledgeSearchService:
                 # Qdrant не поддерживает graph traversal - fallback на semantic
                 logger.warning("Qdrant doesn't support graph traversal, using semantic search instead")
                 strategy = SearchStrategy.SEMANTIC
+        elif self.use_simple_falkordb:
+            # Использовать SimpleFalkorDB
+            logger.info("🟠 Using SimpleFalkorDB for search")
+            if strategy == SearchStrategy.GRAPH:
+                # SimpleFalkorDB пока не поддерживает graph traversal - fallback на fulltext
+                logger.warning("SimpleFalkorDB doesn't support graph traversal yet, using fulltext instead")
+                strategy = SearchStrategy.FULLTEXT
         elif self.graphiti_enabled:
             # Использовать Graphiti
             logger.info("🟢 Using Graphiti for search")
         else:
             # Fallback к локальным файлам
-            logger.warning("Both Qdrant and Graphiti disabled, using fallback to local files")
+            logger.warning("All search backends disabled, using fallback to local files")
             return await self._search_fallback(query, limit)
 
         # Выполнить поиск по стратегии
@@ -256,12 +269,33 @@ class KnowledgeSearchService:
 
                 return final_results
 
+            elif self.use_simple_falkordb:
+                # Поиск через SimpleFalkorDB (fulltext, т.к. семантического поиска пока нет)
+                logger.info("Using SimpleFalkorDB fulltext search instead of semantic")
+                simple_results = await self.simple_falkordb_service.search_fulltext(
+                    query=query,
+                    limit=limit
+                )
+
+                results = []
+                for r in simple_results:
+                    result = SearchResult(
+                        content=r.get("content", ""),
+                        source=f"simple_falkordb_{r.get('type', 'knowledge')}",
+                        relevance_score=r.get("relevance_score", 0.5),
+                        metadata={"type": r.get("type", "")},
+                        search_type="fulltext_simple_falkordb"
+                    )
+                    results.append(result)
+
+                return results
+
             else:
                 # Поиск через FalkorDB (Graphiti backend)
                 graphiti_results = await self.falkordb_service.search_semantic(
                     query=query,
                     limit=limit,
-                    min_relevance=min_relevance  # Note: параметр переименован
+                    min_relevance=min_relevance
                 )
 
                 results = []
@@ -288,10 +322,35 @@ class KnowledgeSearchService:
         limit: int,
         min_relevance: float
     ) -> List[SearchResult]:
-        """Full-text search через Neo4j"""
-        # TODO: Реализовать после создания fulltext index в Neo4j
-        logger.warning("Fulltext search not implemented yet")
-        return []
+        """Full-text search через SimpleFalkorDB или Graphiti"""
+        try:
+            if self.use_simple_falkordb:
+                # Поиск через SimpleFalkorDB
+                simple_results = await self.simple_falkordb_service.search_fulltext(
+                    query=query,
+                    limit=limit
+                )
+
+                results = []
+                for r in simple_results:
+                    result = SearchResult(
+                        content=r.get("content", ""),
+                        source=f"simple_falkordb_{r.get('type', 'knowledge')}",
+                        relevance_score=r.get("relevance_score", 0.5),
+                        metadata={"type": r.get("type", "")},
+                        search_type="fulltext_simple_falkordb"
+                    )
+                    results.append(result)
+
+                return results
+            else:
+                # TODO: Реализовать fulltext search для Graphiti
+                logger.warning("Fulltext search not implemented for Graphiti yet")
+                return []
+
+        except Exception as e:
+            logger.error(f"Fulltext search failed: {e}")
+            return []
 
     async def _search_graph(
         self,
