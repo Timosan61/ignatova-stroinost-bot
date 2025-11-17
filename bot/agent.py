@@ -197,11 +197,19 @@ class TextilProAgent:
                 )
 
                 if search_results:
-                    # Форматируем контекст для LLM
+                    # Форматируем контекст для LLM (увеличен лимит для детальных ответов)
                     context = knowledge_service.format_context_for_llm(
                         results=search_results,
-                        max_length=3000
+                        max_length=15000  # Увеличено с 3000 для ~20 results × 750 chars
                     )
+
+                    # ДИАГНОСТИЧЕСКОЕ ЛОГИРОВАНИЕ
+                    raw_total_chars = sum(len(r.content) for r in search_results)
+                    logger.info(f"📏 Formatted context length: {len(context)} chars")
+                    logger.info(f"📏 Raw results total chars: {raw_total_chars}")
+                    logger.info(f"📏 Results count: {len(search_results)}")
+                    if len(context) < 500:
+                        logger.warning(f"⚠️ ОЧЕНЬ КОРОТКИЙ КОНТЕКСТ! Content: '{context[:500]}...'")
 
                     # Извлекаем источники
                     sources_used = [result.source for result in search_results]
@@ -398,7 +406,8 @@ class TextilProAgent:
             zep_history = await self.get_zep_recent_messages(session_id)
 
             # Добавляем контекст из базы знаний с ГИБКИМ RAG pattern
-            if knowledge_context:
+            # Проверяем что контекст содержит реальную информацию (не только заголовок)
+            if knowledge_context and len(knowledge_context.strip()) > 100:
                 logger.info(f"✅ Добавляем контекст из базы знаний в system prompt (длина: {len(knowledge_context)} символов)")
                 system_prompt += f"""
 
@@ -424,7 +433,14 @@ class TextilProAgent:
 ВАЖНО: Следуй инструкциям по длине ответа и количеству примеров из instruction.json!
 """
             else:
-                logger.info("📭 Контекст из базы знаний пуст")
+                # Логируем почему контекст пустой/короткий
+                if not knowledge_context:
+                    logger.warning(f"⚠️ knowledge_context пустой (None или empty string)")
+                elif len(knowledge_context.strip()) <= 100:
+                    logger.warning(f"⚠️ knowledge_context слишком короткий ({len(knowledge_context)} символов)")
+                    logger.warning(f"   Content preview: '{knowledge_context[:200]}...'")
+                else:
+                    logger.info("📭 Контекст из базы знаний пуст")
                 # Если базы знаний нет - возвращаем fallback сообщение с DEBUG INFO
                 user_name_display = user_name if user_name else "Дорогая"
 
