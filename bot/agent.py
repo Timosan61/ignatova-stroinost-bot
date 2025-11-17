@@ -193,7 +193,7 @@ class TextilProAgent:
                     query=query,
                     strategy=strategy,
                     limit=limit,
-                    min_relevance=0.6
+                    min_relevance=0.3  # Снижен threshold для лучшего поиска
                 )
 
                 if search_results:
@@ -425,9 +425,31 @@ class TextilProAgent:
 """
             else:
                 logger.info("📭 Контекст из базы знаний пуст")
-                # Если базы знаний нет - возвращаем fallback сообщение
+                # Если базы знаний нет - возвращаем fallback сообщение с DEBUG INFO
                 user_name_display = user_name if user_name else "Дорогая"
-                return f"{user_name_display}, по этому вопросу рекомендую обратиться к Наталье напрямую 🌸"
+
+                # Формируем DEBUG INFO для диагностики
+                debug_info = "\n\n---\n🔍 **DEBUG INFO:**\n"
+                debug_info += f"⚠️ **Status:** NO RESULTS FOUND\n"
+                debug_info += f"📚 Knowledge Base: ❌ Пустой результат поиска\n"
+                debug_info += f"📊 **Results:** 0 найдено (возможно threshold={0.3} слишком высокий или exception)\n"
+
+                # Информация о системе поиска
+                if KNOWLEDGE_SEARCH_AVAILABLE:
+                    from bot.services.knowledge_search import get_knowledge_search_service
+                    knowledge_service = get_knowledge_search_service()
+
+                    if knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
+                        debug_info += "🔵 **Search System:** QDRANT Vector DB\n"
+                    elif knowledge_service.graphiti_enabled:
+                        debug_info += "🟢 **Search System:** GRAPHITI Knowledge Graph\n"
+                    else:
+                        debug_info += "⚪ **Search System:** FALLBACK (local files)\n"
+
+                # Подсказка для пользователя
+                debug_info += f"💡 **Hint:** Попробуйте переформулировать вопрос или проверьте логи Railway\n"
+
+                return f"{user_name_display}, по этому вопросу рекомендую обратиться к Наталье напрямую 🌸{debug_info}"
 
             # Добавляем контекст и историю в системный промпт
             if zep_context:

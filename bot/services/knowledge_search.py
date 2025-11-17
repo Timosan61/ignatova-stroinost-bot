@@ -287,7 +287,12 @@ class KnowledgeSearchService:
                 return results
 
         except Exception as e:
-            logger.error(f"Semantic search failed: {e}")
+            logger.error(f"❌ Semantic search FAILED: {type(e).__name__}: {e}")
+            logger.error(f"   Query: '{query[:100]}...'")
+            logger.error(f"   Limit: {limit}, Min relevance: {min_relevance}")
+            logger.error(f"   Qdrant enabled: {self.use_qdrant and self.qdrant_enabled}")
+            logger.error(f"   SimpleFalkorDB enabled: {self.use_simple_falkordb}")
+            logger.error(f"   Graphiti enabled: {self.graphiti_enabled}")
             logger.exception("Full traceback:")
             return []
 
