@@ -249,19 +249,24 @@ class QdrantService:
                     ]
                 )
 
-            # Выполняем поиск
-            search_result = self.client.search(
+            # Выполняем поиск (ИСПРАВЛЕНО: query_points вместо search)
+            response = self.client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_vector,
-                limit=limit,
-                score_threshold=score_threshold,
+                query=query_vector,  # ИЗМЕНЕНО: query вместо query_vector
+                limit=limit * 2,  # Берём больше для manual filtering по score
                 query_filter=search_filter,
                 with_payload=True  # КРИТИЧЕСКИ ВАЖНО: без этого payload=None!
             )
 
+            # Фильтруем по score_threshold вручную (query_points не поддерживает встроенный threshold)
+            filtered_points = [p for p in response.points if p.score >= score_threshold]
+
+            # Обрезаем до нужного limit
+            final_points = filtered_points[:limit]
+
             # Форматируем результаты
             results = []
-            for hit in search_result:
+            for hit in final_points:
                 # DEBUG: детальное логирование структуры hit для диагностики
                 logger.info(f"🔍 DEBUG hit: type={type(hit).__name__}")
                 logger.info(f"   hit.id={hit.id}, hit.score={hit.score}")
@@ -339,19 +344,24 @@ class QdrantService:
                 if filter_conditions:
                     search_filter = Filter(must=filter_conditions)
 
-            # Выполняем поиск
-            search_result = self.client.search(
+            # Выполняем поиск (ИСПРАВЛЕНО: query_points вместо search)
+            response = self.client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_vector,
-                limit=limit,
-                score_threshold=score_threshold,
+                query=query_vector,  # ИЗМЕНЕНО: query вместо query_vector
+                limit=limit * 2,  # Берём больше для manual filtering по score
                 query_filter=search_filter,
                 with_payload=True  # КРИТИЧЕСКИ ВАЖНО: без этого payload=None!
             )
 
+            # Фильтруем по score_threshold вручную (query_points не поддерживает встроенный threshold)
+            filtered_points = [p for p in response.points if p.score >= score_threshold]
+
+            # Обрезаем до нужного limit
+            final_points = filtered_points[:limit]
+
             # Форматируем результаты
             results = []
-            for hit in search_result:
+            for hit in final_points:
                 # DEBUG: детальное логирование структуры hit для диагностики
                 logger.info(f"🔍 DEBUG hit: type={type(hit).__name__}")
                 logger.info(f"   hit.id={hit.id}, hit.score={hit.score}")
