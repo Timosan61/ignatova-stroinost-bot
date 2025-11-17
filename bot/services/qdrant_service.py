@@ -266,27 +266,40 @@ class QdrantService:
 
             # Форматируем результаты
             results = []
+            skipped_empty_content = 0
             for hit in final_points:
-                # DEBUG: детальное логирование структуры hit для диагностики
-                logger.info(f"🔍 DEBUG hit: type={type(hit).__name__}")
-                logger.info(f"   hit.id={hit.id}, hit.score={hit.score}")
-                logger.info(f"   hit.payload type={type(hit.payload)}, len={len(hit.payload) if hit.payload else 0}")
-                if hit.payload:
-                    logger.info(f"   hit.payload.keys()={list(hit.payload.keys())}")
-                    entity_type_value = hit.payload.get("entity_type", "NOT_FOUND")
-                    logger.info(f"   entity_type = '{entity_type_value}'")
-                else:
-                    logger.warning(f"   ⚠️ hit.payload is None!")
+                # Проверка что payload существует
+                if not hit.payload:
+                    logger.warning(f"⚠️ Skipping hit {hit.id}: payload is None")
+                    skipped_empty_content += 1
+                    continue
+
+                # Извлекаем content
+                content_value = hit.payload.get("content", "")
+
+                # КРИТИЧЕСКИ ВАЖНО: пропускаем результаты с пустым content
+                if not content_value or len(content_value.strip()) == 0:
+                    entity_type_debug = hit.payload.get("entity_type", "unknown")
+                    logger.warning(f"⚠️ Skipping hit {hit.id} (type={entity_type_debug}): content is empty!")
+                    skipped_empty_content += 1
+                    continue
+
+                # DEBUG: логируем детали включая content
+                logger.info(f"✅ Hit {hit.id}: score={hit.score:.3f}, type={hit.payload.get('entity_type', 'unknown')}, content_len={len(content_value)}")
+                logger.info(f"   Content preview: '{content_value[:200]}...'")
 
                 result = {
                     "id": str(hit.id),
                     "score": hit.score,
-                    "entity_type": hit.payload.get("entity_type", "unknown") if hit.payload else "unknown",
-                    "title": hit.payload.get("title", "") if hit.payload else "",
-                    "content": hit.payload.get("content", "") if hit.payload else "",
-                    "metadata": hit.payload.get("metadata", {}) if hit.payload else {}
+                    "entity_type": hit.payload.get("entity_type", "unknown"),
+                    "title": hit.payload.get("title", ""),
+                    "content": content_value,
+                    "metadata": hit.payload.get("metadata", {})
                 }
                 results.append(result)
+
+            if skipped_empty_content > 0:
+                logger.warning(f"⚠️ Skipped {skipped_empty_content} results with empty content")
 
             logger.info(f"🔍 Qdrant semantic search: query='{query[:50]}', found={len(results)}")
             return results
@@ -361,27 +374,40 @@ class QdrantService:
 
             # Форматируем результаты
             results = []
+            skipped_empty_content = 0
             for hit in final_points:
-                # DEBUG: детальное логирование структуры hit для диагностики
-                logger.info(f"🔍 DEBUG hit: type={type(hit).__name__}")
-                logger.info(f"   hit.id={hit.id}, hit.score={hit.score}")
-                logger.info(f"   hit.payload type={type(hit.payload)}, len={len(hit.payload) if hit.payload else 0}")
-                if hit.payload:
-                    logger.info(f"   hit.payload.keys()={list(hit.payload.keys())}")
-                    entity_type_value = hit.payload.get("entity_type", "NOT_FOUND")
-                    logger.info(f"   entity_type = '{entity_type_value}'")
-                else:
-                    logger.warning(f"   ⚠️ hit.payload is None!")
+                # Проверка что payload существует
+                if not hit.payload:
+                    logger.warning(f"⚠️ Skipping hit {hit.id}: payload is None")
+                    skipped_empty_content += 1
+                    continue
+
+                # Извлекаем content
+                content_value = hit.payload.get("content", "")
+
+                # КРИТИЧЕСКИ ВАЖНО: пропускаем результаты с пустым content
+                if not content_value or len(content_value.strip()) == 0:
+                    entity_type_debug = hit.payload.get("entity_type", "unknown")
+                    logger.warning(f"⚠️ Skipping hit {hit.id} (type={entity_type_debug}): content is empty!")
+                    skipped_empty_content += 1
+                    continue
+
+                # DEBUG: логируем детали включая content
+                logger.info(f"✅ Hit {hit.id}: score={hit.score:.3f}, type={hit.payload.get('entity_type', 'unknown')}, content_len={len(content_value)}")
+                logger.info(f"   Content preview: '{content_value[:200]}...'")
 
                 result = {
                     "id": str(hit.id),
                     "score": hit.score,
-                    "entity_type": hit.payload.get("entity_type", "unknown") if hit.payload else "unknown",
-                    "title": hit.payload.get("title", "") if hit.payload else "",
-                    "content": hit.payload.get("content", "") if hit.payload else "",
-                    "metadata": hit.payload.get("metadata", {}) if hit.payload else {}
+                    "entity_type": hit.payload.get("entity_type", "unknown"),
+                    "title": hit.payload.get("title", ""),
+                    "content": content_value,
+                    "metadata": hit.payload.get("metadata", {})
                 }
                 results.append(result)
+
+            if skipped_empty_content > 0:
+                logger.warning(f"⚠️ Skipped {skipped_empty_content} results with empty content")
 
             logger.info(f"🔍 Qdrant hybrid search: query='{query[:50]}', filters={filters}, found={len(results)}")
             return results
