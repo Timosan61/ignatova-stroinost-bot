@@ -210,7 +210,7 @@ class KnowledgeSearchService:
                 entity_type_counts = {}
 
                 for r in raw_results:
-                    entity_type = r.get("metadata", {}).get("entity_type", "unknown")
+                    entity_type = r.get("entity_type", "unknown")
                     boost_factor = boosting_factors.get(entity_type, 1.0)
                     boosted_score = r.get("score", 0.0) * boost_factor
 
@@ -382,7 +382,7 @@ class KnowledgeSearchService:
                 all_results = []
 
                 for r in raw_results:
-                    entity_type = r.get("metadata", {}).get("entity_type", "unknown")
+                    entity_type = r.get("entity_type", "unknown")
                     boost_factor = boosting_factors.get(entity_type, 1.0)
                     boosted_score = r.get("score", 0.0) * boost_factor
 
