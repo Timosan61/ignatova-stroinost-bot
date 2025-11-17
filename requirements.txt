@@ -10,6 +10,7 @@ zep-cloud==2.14.1
 graphiti-core==0.18.9  # Последняя стабильная БЕЗ reasoning.effort (работает с GPT-4o-mini)
 qdrant-client>=1.7.0
 sentence-transformers>=2.2.0
+supabase>=2.0.0  # PostgreSQL + pgvector для векторного поиска
 
 # Web Framework
 fastapi==0.110.0

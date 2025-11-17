@@ -29,6 +29,102 @@
 - Webhook: `https://ignatova-stroinost-bot-production.up.railway.app/webhook`
 - Health check: `https://ignatova-stroinost-bot-production.up.railway.app/health`
 
+**Qdrant Cloud:**
+- URL: `https://33d94c1b-cc7f-4b71-82cc-dcee289122f0.eu-central-1-0.aws.cloud.qdrant.io:6333`
+- Collection: `course_knowledge`
+- Entities: **3,234** (FAQ: 25, Lessons: 127, Corrections: 275, Questions: 2,635, Brainwrites: 172)
+- Embedding model: `sentence-transformers/all-MiniLM-L6-v2` (384D vectors)
+
+---
+
+## 🚀 ПОЛНАЯ МИГРАЦИЯ QDRANT (16 ноября 2025)
+
+### ✅ Миграция завершена: 3,234 entities
+
+**Проблема:** Student questions не загружались (0 из 2,636)
+- Бот возвращал fallback ответы на запросы про "возврат средств", "техподдержку" и т.д.
+- Multi-stage search исключал questions из результатов (entity_type filters)
+- Миграция через Railway блокировала бот-сервер
+
+**Решение:**
+
+#### 1. **Исправлен критический баг в parse_questions()** (commit: в этой сессии)
+**Файл:** `scripts/parse_knowledge_base.py:373-378`
+
+```python
+# ❌ ДО (ошибка при sample_limit=None):
+per_category = sample_limit // len(categories)
+# TypeError: unsupported operand type(s) for //: 'NoneType' and 'int'
+
+# ✅ ПОСЛЕ:
+if sample_limit is None:
+    per_category = None  # Загрузить ВСЕ вопросы (2,636)
+else:
+    per_category = sample_limit // len(categories)
+```
+
+**Результат:** 0 → 2,635 questions загружено!
+
+#### 2. **Локальная миграция через fastembed** (экономия ресурсов)
+
+**Проблема:** sentence-transformers требует ~2.2GB (CUDA библиотеки)
+**Решение:** Переключение на fastembed (~30MB)
+
+**Файл:** `scripts/migrate_to_qdrant.py:35-46, 94-97, 303`
+
+```python
+# ДО:
+from sentence_transformers import SentenceTransformer
+self.encoder = SentenceTransformer(EMBEDDING_MODEL)
+vector = self.encoder.encode(content).tolist()
+
+# ПОСЛЕ:
+from fastembed import TextEmbedding
+self.encoder = TextEmbedding(model_name=EMBEDDING_MODEL)
+vector = list(self.encoder.embed([content]))[0].tolist()
+```
+
+**Экономия:** 900MB torch + CUDA → 30MB fastembed
+
+#### 3. **Результаты миграции**
+
+| Entity Type | Количество | Статус |
+|-------------|-----------|--------|
+| FAQ | 25 | ✅ |
+| Lessons | 127 | ✅ |
+| Corrections | 275 | ✅ |
+| **Questions** | **2,635** | ✅ **ИСПРАВЛЕНО!** (было 0) |
+| Brainwrites | 172 | ✅ |
+| **ИТОГО** | **3,234** | ✅ 100% успех |
+
+**Время:** ~3 минуты (локальная миграция)
+**Метод:** Python venv с fastembed + qdrant-client
+**Логи:** `qdrant_migration_FULL.log`
+
+#### 4. **Проверка данных**
+
+```bash
+# Qdrant Collection stats
+curl -s "https://33d94c1b-cc7f-4b71-82cc-dcee289122f0.eu-central-1-0.aws.cloud.qdrant.io:6333/collections/course_knowledge" \
+  -H "api-key: ..." | jq '.result.points_count'
+# → 3234
+
+# Student questions count
+curl -s "https://.../collections/course_knowledge/points/count" \
+  -H "api-key: ..." \
+  -d '{"filter": {"must": [{"key": "entity_type", "match": {"value": "question"}}]}}' | jq '.result.count'
+# → 2635
+```
+
+#### 5. **Unified Search теперь доступен**
+
+С **3,234 entities** (вместо 980):
+- ✅ Вопросы студентов находятся semantic search
+- ✅ FAQ + lessons + corrections + questions + brainwrites в одном поиске
+- ✅ Нет необходимости в multi-stage фильтрации (все entity_type доступны)
+
+**Следующий шаг:** Включить `USE_QDRANT=true` в Railway для тестирования
+
 ---
 
 ## 🔍 КРИТИЧЕСКИЕ ИСПРАВЛЕНИЯ: Multi-Stage Search + DebugInfo (15-16 ноября 2025)
@@ -303,7 +399,8 @@ response = requests.post(
 | **Голосовые сообщения** | ✅ Работает | Whisper API транскрипция |
 | **Zep Cloud** | ✅ Работает | Краткосрочная AI память |
 | **MySQL** | ✅ Работает | Архив всех переписок |
-| **Qdrant** | ✅ Работает | Multi-stage search (980 entities) |
+| **Supabase** | ✅ Готов | PostgreSQL + pgvector (3,234 entities, OpenAI embeddings 1536D) |
+| **Qdrant** | ✅ Работает | Multi-stage search (3,234 entities, 384D vectors) |
 | **Graphiti/Neo4j** | ⚠️ Standby | Переключаемая альтернатива |
 
 ### 🔧 Railway Environment Variables
@@ -322,8 +419,9 @@ ZEP_API_KEY=z_1dWlkI...
 VOICE_ENABLED=true
 
 # Knowledge Base (выбери одну)
-USE_QDRANT=true              # Рекомендуется (быстрее, дешевле)
-# GRAPHITI_ENABLED=true      # Альтернатива (Neo4j)
+USE_SUPABASE=true            # PostgreSQL + pgvector + OpenAI embeddings
+# USE_QDRANT=true            # Dedicated vector DB + локальные embeddings (рекомендуется для production)
+# GRAPHITI_ENABLED=true      # Knowledge graph + Neo4j/FalkorDB
 
 # Database
 DATABASE_URL=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@${MYSQL_HOST}:${MYSQL_PORT}/${MYSQL_DATABASE}
@@ -395,9 +493,18 @@ curl "https://ignatova-stroinost-bot-production.up.railway.app/api/stats"
 
 ### Переключение систем поиска
 
-**Использовать Qdrant (рекомендуется):**
+**Использовать Supabase (для тестирования):**
 ```bash
 # Railway Dashboard → Variables
+USE_SUPABASE=true
+USE_QDRANT=false
+GRAPHITI_ENABLED=false
+```
+
+**Использовать Qdrant (рекомендуется для production):**
+```bash
+# Railway Dashboard → Variables
+USE_SUPABASE=false
 USE_QDRANT=true
 GRAPHITI_ENABLED=false
 ```
@@ -405,11 +512,14 @@ GRAPHITI_ENABLED=false
 **Использовать Graphiti:**
 ```bash
 # Railway Dashboard → Variables
+USE_SUPABASE=false
 USE_QDRANT=false
 GRAPHITI_ENABLED=true
 ```
 
-**Инструкция:** См. `docs/QDRANT_SWITCH.md`
+**Инструкции:**
+- Qdrant: См. `docs/QDRANT_SWITCH.md`
+- Supabase: См. `docs/SUPABASE_INTEGRATION.md`
 
 ---
 
@@ -428,6 +538,8 @@ GRAPHITI_ENABLED=true
 
 | Документ | Описание |
 |----------|----------|
+| `docs/SUPABASE_INTEGRATION.md` | Supabase vector store (PostgreSQL + pgvector + OpenAI) |
+| `docs/SUPABASE_MIGRATION_REPORT.md` | Отчёт о миграции Supabase (3,234 entities, $0.02) |
 | `docs/QDRANT_INTEGRATION.md` | Qdrant vector database (semantic search) |
 | `docs/GRAPHITI_INTEGRATION.md` | Graphiti knowledge graph (Neo4j) |
 | `docs/MEMORY_ARCHITECTURE.md` | Гибридная архитектура памяти |
@@ -443,12 +555,13 @@ GRAPHITI_ENABLED=true
 
 **Performance:**
 - Startup time: <5 секунд
-- Search latency: 30-50ms (Qdrant)
+- Search latency: 30-50ms (Qdrant), 100-250ms (Supabase)
 - Response time: 100-300ms (AI generation)
 
 **База знаний:**
-- Qdrant: 980 entities (25 FAQ + 127 lessons + 275 corrections + 500 questions + 53 brainwrites)
-- Graphiti: 449 entities (25 FAQ + 149 lesson chunks + 275 corrections)
+- Supabase: 3,234 entities (25 FAQ + 127 lessons + 275 corrections + 2,635 questions + 172 brainwrites) ✅ FULL
+- Qdrant: 3,234 entities (25 FAQ + 127 lessons + 275 corrections + 2,635 questions + 172 brainwrites) ✅ FULL
+- Graphiti: 449 entities (25 FAQ + 149 lesson chunks + 275 corrections) ⚠️ LIMITED
 
 **Стоимость:**
 - Обработка knowledge base: $2-3 за 1000 entities (GPT-4o-mini)

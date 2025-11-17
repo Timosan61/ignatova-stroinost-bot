@@ -35,6 +35,13 @@ QDRANT_COLLECTION = os.getenv('QDRANT_COLLECTION', 'course_knowledge')
 EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'all-MiniLM-L6-v2')
 USE_QDRANT = os.getenv('USE_QDRANT', 'false').lower() in ('true', '1', 'yes')
 
+# Supabase Vector Store Configuration
+SUPABASE_URL = os.getenv('SUPABASE_URL', '')
+SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY', '')
+SUPABASE_TABLE = os.getenv('SUPABASE_TABLE', 'course_knowledge')
+OPENAI_EMBEDDING_MODEL = os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small')
+USE_SUPABASE = os.getenv('USE_SUPABASE', 'false').lower() in ('true', '1', 'yes')
+
 # Knowledge Search Configuration
 SEARCH_LIMIT = int(os.getenv('SEARCH_LIMIT', '10'))  # Количество результатов из базы знаний
 
@@ -88,3 +95,14 @@ if USE_QDRANT:
         print("⚠️ Qdrant включен, но не настроен (QDRANT_URL/QDRANT_API_KEY не заданы)")
 else:
     print("⚪ Qdrant Vector Database отключен (USE_QDRANT=false)")
+
+# Информация о статусе Supabase Vector Store
+if USE_SUPABASE:
+    if SUPABASE_URL and SUPABASE_SERVICE_KEY and OPENAI_API_KEY:
+        print("🟣 Supabase Vector Store включен (USE_SUPABASE=true, OpenAI embeddings ready)")
+    elif not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        print("⚠️ Supabase включен, но не настроен (SUPABASE_URL/SUPABASE_SERVICE_KEY не заданы)")
+    elif not OPENAI_API_KEY:
+        print("⚠️ Supabase включен, но OpenAI API недоступен (требуется для embeddings)")
+else:
+    print("⚪ Supabase Vector Store отключен (USE_SUPABASE=false)")

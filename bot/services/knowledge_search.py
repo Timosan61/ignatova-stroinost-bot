@@ -22,7 +22,8 @@ from enum import Enum
 # from bot.services.falkordb_service import get_falkordb_service  # FalkorDB (496x faster than Neo4j!)
 # from bot.services.simple_falkordb_service import get_simple_falkordb_service  # SimpleFalkorDB (без Graphiti)
 from bot.services.qdrant_service import get_qdrant_service
-from bot.config import GRAPHITI_ENABLED, USE_QDRANT
+from bot.services.supabase_service import get_supabase_service
+from bot.config import GRAPHITI_ENABLED, USE_QDRANT, USE_SUPABASE
 
 logger = logging.getLogger(__name__)
 
@@ -85,18 +86,23 @@ class KnowledgeSearchService:
         self.falkordb_service = None  # get_falkordb_service()
         self.simple_falkordb_service = None  # get_simple_falkordb_service()
         self.qdrant_service = get_qdrant_service()
+        self.supabase_service = get_supabase_service()
 
         # Определение какую систему использовать
         self.use_qdrant = USE_QDRANT
+        self.use_supabase = USE_SUPABASE
         self.use_simple_falkordb = False  # GRAPHITI_ENABLED and self.simple_falkordb_service.enabled
         self.graphiti_enabled = False  # GRAPHITI_ENABLED and self.falkordb_service.enabled
         self.qdrant_enabled = USE_QDRANT and self.qdrant_service.enabled
+        self.supabase_enabled = USE_SUPABASE and self.supabase_service.enabled
 
         # Paths для fallback
         self.kb_dir = Path(__file__).parent.parent.parent / "KNOWLEDGE_BASE"
 
         # Логирование активной системы
-        if self.use_qdrant and self.qdrant_enabled:
+        if self.use_supabase and self.supabase_enabled:
+            logger.info("🟣 KnowledgeSearchService initialized (Using: SUPABASE)")
+        elif self.use_qdrant and self.qdrant_enabled:
             logger.info("🔵 KnowledgeSearchService initialized (Using: QDRANT)")
         elif self.use_simple_falkordb:
             logger.info("🟠 KnowledgeSearchService initialized (Using: SimpleFalkorDB)")
@@ -127,7 +133,14 @@ class KnowledgeSearchService:
         logger.info(f"Search query: '{query}' (strategy: {strategy}, limit: {limit})")
 
         # Определить какую систему использовать
-        if self.use_qdrant and self.qdrant_enabled:
+        if self.use_supabase and self.supabase_enabled:
+            # Использовать Supabase
+            logger.info("🟣 Using Supabase for search")
+            if strategy == SearchStrategy.GRAPH:
+                # Supabase не поддерживает graph traversal - fallback на semantic
+                logger.warning("Supabase doesn't support graph traversal, using semantic search instead")
+                strategy = SearchStrategy.SEMANTIC
+        elif self.use_qdrant and self.qdrant_enabled:
             # Использовать Qdrant
             logger.info("🔵 Using Qdrant for search")
             if strategy == SearchStrategy.GRAPH:
@@ -184,8 +197,49 @@ class KnowledgeSearchService:
         - Brainwrites (0.9x) - примеры студентов (могут содержать ошибки)
         """
         try:
-            # Переключение между Qdrant и Graphiti
-            if self.use_qdrant and self.qdrant_enabled:
+            # Переключение между Supabase, Qdrant и Graphiti
+            if self.use_supabase and self.supabase_enabled:
+                # Unified search по всей базе знаний через Supabase
+                logger.info(f"🔍 Supabase: Unified search по всей базе знаний...")
+
+                # Единый запрос к Supabase без фильтрации по entity_type
+                raw_results = await self.supabase_service.search_semantic(
+                    query=query,
+                    limit=limit * 2,  # Берём в 2 раза больше для последующей фильтрации
+                    score_threshold=min_relevance,
+                    entity_type=None  # ❌ Убрали entity_type фильтр!
+                )
+
+                # Score boosting для приоритизации типов
+                boosting_factors = {
+                    "lesson": 1.2,      # Уроки важнее
+                    "faq": 1.1,         # FAQ тоже важны
+                    "correction": 1.0,  # Нейтральный
+                    "question": 1.0,    # Вопросы учениц
+                    "brainwrite": 0.9   # Примеры студентов (могут содержать ошибки)
+                }
+
+                results = []
+                for r in raw_results:
+                    entity_type = r.get("entity_type", "unknown")
+                    boost_factor = boosting_factors.get(entity_type, 1.0)
+                    boosted_score = r.get("score", 0.0) * boost_factor
+
+                    results.append(SearchResult(
+                        content=r.get("content", ""),
+                        source="SUPABASE_VECTOR_STORE",
+                        relevance_score=boosted_score,
+                        metadata=r.get("metadata", {}),
+                        search_type="semantic"
+                    ))
+
+                # Сортируем по boosted score и обрезаем до limit
+                results = sorted(results, key=lambda x: x.relevance_score, reverse=True)[:limit]
+
+                logger.info(f"✅ Supabase: Found {len(results)} results")
+                return results
+
+            elif self.use_qdrant and self.qdrant_enabled:
                 # Unified search по всей базе знаний (БЕЗ entity_type фильтрации)
                 logger.info(f"🔍 Unified search по всей базе знаний...")
 
