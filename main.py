@@ -322,25 +322,63 @@ async def startup():
     # Автоматическая установка webhook при запуске
     webhook_base = os.getenv('WEBHOOK_URL', 'https://ignatova-stroinost-bot-production.up.railway.app')
     if webhook_base:
+        # КРИТИЧЕСКИ ВАЖНО: убираем пробелы из URL (Telegram API строго к этому)
+        webhook_base = webhook_base.strip()
+
         # Убедимся что URL правильный (с /webhook на конце)
         webhook_url = f"{webhook_base}/webhook" if not webhook_base.endswith('/webhook') else webhook_base
-        try:
-            # ВАЖНО: не используем secret_token - telegram-bot библиотека не работает с ним
-            import requests
-            response = requests.post(
-                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
-                json={
-                    "url": webhook_url,
-                    "allowed_updates": ["message", "business_connection", "business_message"]
-                }
-            )
-            result = response.json()
-            if result.get("ok"):
-                logger.info(f"✅ Webhook автоматически установлен: {webhook_url}")
-            else:
-                logger.warning(f"⚠️ Не удалось автоматически установить webhook: {result}")
-        except Exception as e:
-            logger.error(f"❌ Ошибка автоустановки webhook: {e}")
+
+        logger.info(f"🔧 Попытка автоматической установки webhook: {webhook_url}")
+
+        # Retry логика с 3 попытками
+        import requests
+        import time
+
+        max_retries = 3
+        retry_delay = 2  # секунды
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"   Попытка {attempt}/{max_retries}...")
+
+                # Небольшая задержка перед первой попыткой (дать сервису запуститься)
+                if attempt == 1:
+                    time.sleep(1)
+
+                response = requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
+                    json={
+                        "url": webhook_url,
+                        "allowed_updates": ["message", "business_connection", "business_message"]
+                    },
+                    timeout=10
+                )
+                result = response.json()
+
+                if result.get("ok"):
+                    logger.info(f"✅ Webhook автоматически установлен: {webhook_url}")
+                    logger.info(f"   Description: {result.get('description', 'N/A')}")
+                    break  # Успешно установлен - выходим из цикла
+                else:
+                    error_msg = result.get('description', 'Unknown error')
+                    logger.warning(f"⚠️ Попытка {attempt} не удалась: {error_msg}")
+
+                    if attempt < max_retries:
+                        logger.info(f"   Ожидание {retry_delay}с перед следующей попыткой...")
+                        time.sleep(retry_delay)
+                    else:
+                        logger.error(f"❌ Все {max_retries} попытки установки webhook исчерпаны")
+                        logger.error(f"   Последняя ошибка: {result}")
+                        logger.error(f"   💡 Webhook можно установить вручную через Telegram API")
+
+            except requests.exceptions.Timeout:
+                logger.warning(f"⚠️ Timeout при попытке {attempt}")
+                if attempt < max_retries:
+                    time.sleep(retry_delay)
+            except Exception as e:
+                logger.error(f"❌ Ошибка при попытке {attempt}: {type(e).__name__}: {e}")
+                if attempt < max_retries:
+                    time.sleep(retry_delay)
 
 @app.on_event("shutdown")
 async def shutdown():
