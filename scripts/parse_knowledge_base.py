@@ -370,10 +370,16 @@ class KnowledgeBaseParser:
 
             # Равномерная выборка из всех категорий
             categories = list(by_category.keys())
-            per_category = sample_limit // len(categories) if categories else 0
+
+            # Если sample_limit=None → загружаем ВСЕ вопросы
+            if sample_limit is None:
+                per_category = None  # Без ограничений
+            else:
+                per_category = sample_limit // len(categories) if categories else 0
 
             for category, category_questions in by_category.items():
                 # Берем только первые N вопросов из каждой категории
+                # (если per_category=None, то [:None] вернёт все вопросы)
                 sampled = category_questions[:per_category]
 
                 for q_data in sampled:

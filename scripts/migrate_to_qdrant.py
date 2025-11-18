@@ -38,11 +38,11 @@ try:
         Distance, VectorParams, PointStruct,
         CreateCollection
     )
-    from sentence_transformers import SentenceTransformer
+    from fastembed import TextEmbedding
     QDRANT_AVAILABLE = True
 except ImportError:
-    print("❌ ERROR: qdrant-client or sentence-transformers not installed")
-    print("Install: pip install qdrant-client sentence-transformers")
+    print("❌ ERROR: qdrant-client or fastembed not installed")
+    print("Install: pip install qdrant-client fastembed")
     sys.exit(1)
 
 from bot.config import QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION, EMBEDDING_MODEL
@@ -91,10 +91,10 @@ class QdrantMigration:
         )
         logger.info(f"✅ Qdrant client connected: {QDRANT_URL}")
 
-        # Инициализация sentence transformer
-        logger.info(f"Loading sentence transformer: {EMBEDDING_MODEL}")
-        self.encoder = SentenceTransformer(EMBEDDING_MODEL)
-        logger.info(f"✅ Sentence transformer loaded: {EMBEDDING_MODEL}")
+        # Инициализация fastembed (легковесная альтернатива sentence-transformers)
+        logger.info(f"Loading fastembed model: {EMBEDDING_MODEL}")
+        self.encoder = TextEmbedding(model_name=EMBEDDING_MODEL)
+        logger.info(f"✅ Fastembed model loaded: {EMBEDDING_MODEL}")
 
         # Статистика
         self.stats = {
@@ -135,8 +135,8 @@ class QdrantMigration:
 
         logger.info(f"Creating collection: {QDRANT_COLLECTION}")
 
-        # Получаем размер вектора из модели
-        test_vector = self.encoder.encode("test").tolist()
+        # Получаем размер вектора из модели (fastembed)
+        test_vector = list(self.encoder.embed(["test"]))[0].tolist()
         vector_size = len(test_vector)
 
         self.client.create_collection(
@@ -299,8 +299,8 @@ class QdrantMigration:
         points = []
 
         for entity in entities:
-            # Генерируем embedding для content
-            vector = self.encoder.encode(entity["content"]).tolist()
+            # Генерируем embedding для content (fastembed возвращает generator)
+            vector = list(self.encoder.embed([entity["content"]]))[0].tolist()
 
             # Создаём payload
             payload = {

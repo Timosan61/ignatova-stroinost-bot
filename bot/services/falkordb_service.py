@@ -9,7 +9,79 @@ from datetime import datetime
 
 from graphiti_core import Graphiti
 from graphiti_core.llm_client import OpenAIClient, LLMConfig
-from graphiti_core.driver.falkordb_driver import FalkorDriver
+from graphiti_core.driver.falkordb_driver import FalkorDriver as BaseFalkorDriver
+
+# Custom FalkorDriver wrapper для обхода hardcoded credentials
+class CustomFalkorDriver(BaseFalkorDriver):
+    """
+    Custom FalkorDriver который не использует hardcoded credentials.
+    Обходит баг в graphiti-core-falkordb==0.19.10 где __init__ создаёт hardcoded client.
+    """
+    def __init__(self, falkordb_client):
+        # НЕ вызываем super().__init__() чтобы избежать hardcoded client
+        # Вместо этого напрямую устанавливаем наш клиент
+        self.client = falkordb_client
+        self._graphs = {}  # Кеш graphs
+
+    def _get_graph(self, graph_name: str):
+        """Получить граф по имени (с кешированием)"""
+        if graph_name not in self._graphs:
+            self._graphs[graph_name] = self.client.select_graph(graph_name)
+        return self._graphs[graph_name]
+
+    def _convert_datetimes_to_strings(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert datetime objects to ISO format strings"""
+        from datetime import datetime
+
+        result = {}
+        for key, value in params.items():
+            if isinstance(value, datetime):
+                result[key] = value.isoformat()
+            elif isinstance(value, dict):
+                result[key] = self._convert_datetimes_to_strings(value)
+            elif isinstance(value, list):
+                result[key] = [
+                    v.isoformat() if isinstance(v, datetime) else v
+                    for v in value
+                ]
+            else:
+                result[key] = value
+        return result
+
+    async def execute_query(self, cypher_query, **kwargs):
+        """
+        Исправленная версия execute_query без бага с .decode()
+        FalkorDB возвращает строки, а не bytes
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+        DEFAULT_DATABASE = 'knowledge_graph'
+
+        graph_name = kwargs.pop('database_', DEFAULT_DATABASE)
+        graph = self._get_graph(graph_name)
+
+        # Convert datetime objects to ISO strings
+        params = self._convert_datetimes_to_strings(dict(kwargs))
+
+        try:
+            logger.debug(f"Executing Cypher query: {cypher_query[:200]}...")
+            logger.debug(f"Params: {params}")
+            # ВАЖНО: params как именованный аргумент, не позиционный!
+            result = await graph.query(cypher_query, params=params)
+        except Exception as e:
+            if 'already indexed' in str(e):
+                logger.info(f'Index already exists: {e}')
+                return None
+            logger.error(f'Error executing FalkorDB query: {e}')
+            logger.error(f'Query was: {cypher_query[:200]}...')
+            logger.error(f'Params were: {params}')
+            raise
+
+        # ИСПРАВЛЕНИЕ: h[1] уже string, НЕ bytes!
+        header = [h[1] if isinstance(h[1], str) else h[1].decode('utf-8')
+                  for h in result.header]
+        return result.result_set, header, None
 
 from bot.config import (
     FALKORDB_HOST,
@@ -44,14 +116,21 @@ class FalkorDBService:
 
             logger.info(f"Initializing FalkorDB driver: {FALKORDB_HOST}:{FALKORDB_PORT}")
 
-            # Создаём FalkorDB driver
-            self.falkor_driver = FalkorDriver(
+            # Создаём FalkorDB клиент напрямую
+            from falkordb.asyncio import FalkorDB
+
+            logger.info(f"Creating FalkorDB client: {FALKORDB_HOST}:{FALKORDB_PORT}")
+            falkordb_client = FalkorDB(
                 host=FALKORDB_HOST,
-                port=FALKORDB_PORT,
-                username=FALKORDB_USERNAME,
+                port=int(FALKORDB_PORT),
                 password=FALKORDB_PASSWORD,
-                database=FALKORDB_DATABASE
+                username=FALKORDB_USERNAME,
+                ssl=False  # SSL отключен т.к. вызывает timeout
             )
+
+            # Создаём CustomFalkorDriver с нашим клиентом
+            # Это обходит баг в BaseFalkorDriver который использует hardcoded credentials
+            self.falkor_driver = CustomFalkorDriver(falkordb_client)
 
             logger.info("✅ FalkorDB driver created successfully")
 
@@ -67,7 +146,12 @@ class FalkorDBService:
             llm_client = OpenAIClient(config=llm_config)
 
             # Создаём Graphiti client с FalkorDB driver
+            # URI здесь dummy т.к. используется graph_driver напрямую
+            dummy_uri = f"redis://{FALKORDB_HOST}:{FALKORDB_PORT}"
             self.graphiti_client = Graphiti(
+                uri=dummy_uri,
+                user=FALKORDB_USERNAME,
+                password=FALKORDB_PASSWORD,
                 graph_driver=self.falkor_driver,
                 llm_client=llm_client
             )
@@ -172,7 +256,7 @@ class FalkorDBService:
             episode_type: Тип (conversation, lesson, faq, etc.)
             source: Источник (telegram, web, etc.)
             source_description: Описание источника
-            metadata: Дополнительные метаданные
+            metadata: Дополнительные метаданные (сохраняется в group_id)
 
         Returns:
             (success: bool, episode_id: Optional[str])
@@ -191,14 +275,24 @@ class FalkorDBService:
             logger.info(f"   Content length: {len(content)} chars")
             logger.info(f"   LLM model: {MODEL_NAME}")
 
+            # Graphiti v0.19.10 требует reference_time
+            from graphiti_core.nodes import EpisodeType
+            import json
+
+            # metadata сохраняем как JSON в group_id
+            group_id = json.dumps(metadata or {}) if metadata else ""
+
             # Добавляем episode
-            episode_id = await self.graphiti_client.add_episode(
+            result = await self.graphiti_client.add_episode(
                 name=episode_type,
                 episode_body=content,
-                source=source,
                 source_description=source_description or f"{source} {episode_type}",
-                metadata=metadata or {}
+                reference_time=datetime.now(),
+                source=EpisodeType.message,  # или другой тип из enum
+                group_id=group_id
             )
+
+            episode_id = result.uuid if hasattr(result, 'uuid') else str(result)
 
             logger.info(f"✅ FALKORDB: Episode added successfully")
             logger.info(f"   Episode ID: {episode_id}")

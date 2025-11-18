@@ -71,3 +71,4 @@ Analitics/*.json
 # Neo4j and backup credentials
 .env.neo4j
 .env.backup
+venv_fastembed/
