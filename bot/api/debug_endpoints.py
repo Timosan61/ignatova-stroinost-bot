@@ -8,6 +8,15 @@ from datetime import datetime
 from typing import Dict, Any
 from fastapi import APIRouter
 
+# Import message logger
+try:
+    from bot.services.message_logger import get_message_log, get_recent_logs
+    MESSAGE_LOGGER_AVAILABLE = True
+except ImportError:
+    MESSAGE_LOGGER_AVAILABLE = False
+    get_message_log = None
+    get_recent_logs = None
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/debug", tags=["debug"])
 
@@ -146,6 +155,78 @@ def create_debug_router(agent=None, business_handler=None) -> APIRouter:
                     }
                     for msg in (memory.messages[-5:] if memory.messages else [])
                 ]
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e)
+            }
+
+    # === MESSAGE LOGS ENDPOINTS ===
+
+    @router.get("/message/{message_id}")
+    async def get_message_details(message_id: str):
+        """
+        Получить детальную информацию о сообщении по Message ID.
+
+        Использование: GET /debug/message/M624aa39
+
+        Возвращает:
+        - Оригинальный запрос пользователя
+        - Найденный контекст из embeddings
+        - Результаты поиска (scores, entity types)
+        - Контекст из Zep памяти
+        - Ответ модели
+        """
+        if not MESSAGE_LOGGER_AVAILABLE:
+            return {
+                "status": "error",
+                "error": "Message logger не доступен"
+            }
+
+        # Убираем # из message_id если есть
+        clean_id = message_id.lstrip('#')
+
+        try:
+            log_data = await get_message_log(clean_id)
+
+            if not log_data:
+                return {
+                    "status": "not_found",
+                    "message_id": clean_id,
+                    "error": f"Лог с ID '{clean_id}' не найден"
+                }
+
+            return {
+                "status": "success",
+                "data": log_data
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e)
+            }
+
+    @router.get("/messages/recent")
+    async def get_recent_message_logs(limit: int = 20):
+        """
+        Получить последние логи сообщений.
+
+        Использование: GET /debug/messages/recent?limit=20
+        """
+        if not MESSAGE_LOGGER_AVAILABLE:
+            return {
+                "status": "error",
+                "error": "Message logger не доступен"
+            }
+
+        try:
+            logs = await get_recent_logs(limit=min(limit, 100))
+
+            return {
+                "status": "success",
+                "count": len(logs),
+                "logs": logs
             }
         except Exception as e:
             return {

@@ -4,7 +4,7 @@ Adapted from GPTIFOBIZ architecture for Ignatova-Stroinost bot.
 """
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Index
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Index, Float
 from sqlalchemy.orm import relationship
 from bot.database.database import Base
 
@@ -143,3 +143,56 @@ class GraphitiCheckpoint(Base):
 
     def __repr__(self):
         return f"<GraphitiCheckpoint(entity_id={self.entity_id}, type={self.entity_type}, loaded_at={self.loaded_at})>"
+
+
+class MessageLog(Base):
+    """
+    Детальное логирование обработки сообщений для анализа и отладки.
+    Позволяет найти по Message ID полную информацию о запросе.
+    """
+    __tablename__ = "message_logs"
+
+    # Primary key
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+
+    # Message ID для поиска (формат: M624aa39)
+    message_id = Column(String(20), unique=True, nullable=False, index=True, comment="Уникальный ID сообщения для трейсинга")
+
+    # User information
+    user_id = Column(String(255), nullable=True, index=True, comment="Telegram user ID")
+    user_name = Column(String(255), nullable=True, comment="Имя пользователя")
+    session_id = Column(String(100), nullable=True, index=True, comment="Session ID для Zep")
+
+    # Original query
+    query = Column(Text, nullable=True, comment="Оригинальный запрос пользователя")
+
+    # Search results metadata
+    search_results_count = Column(Integer, default=0, comment="Количество найденных результатов")
+    avg_relevance_score = Column(Float, nullable=True, comment="Средний score релевантности")
+    entity_types = Column(JSON, nullable=True, comment="Breakdown по типам entities")
+    sources = Column(JSON, nullable=True, comment="Список использованных источников")
+
+    # Контексты (главное для анализа!)
+    knowledge_context = Column(Text, nullable=True, comment="Контекст из базы знаний (embeddings)")
+    zep_context = Column(Text, nullable=True, comment="Контекст из Zep памяти")
+    full_prompt_length = Column(Integer, nullable=True, comment="Полная длина промпта в символах")
+
+    # Model и response
+    model_used = Column(String(50), nullable=True, comment="Использованная модель (gpt-4o-mini, claude-3-5-sonnet)")
+    response_text = Column(Text, nullable=True, comment="Ответ модели")
+    response_length = Column(Integer, nullable=True, comment="Длина ответа в символах")
+
+    # Error tracking
+    error_message = Column(Text, nullable=True, comment="Сообщение об ошибке если была")
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True, comment="Время создания записи")
+
+    # Indexes for performance
+    __table_args__ = (
+        Index('idx_message_created', 'message_id', 'created_at'),
+        Index('idx_user_created', 'user_id', 'created_at'),
+    )
+
+    def __repr__(self):
+        return f"<MessageLog(message_id={self.message_id}, user={self.user_name}, results={self.search_results_count})>"

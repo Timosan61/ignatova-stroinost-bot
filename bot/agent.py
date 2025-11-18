@@ -15,6 +15,7 @@ from .config import (
     SEARCH_LIMIT
 )
 from .validators import validate_response
+from .services.message_logger import log_message
 
 # Опциональный импорт голосового сервиса
 try:
@@ -575,6 +576,35 @@ class TextilProAgent:
 
                     # Логируем Message ID для поиска в логах
                     logger.info(f"🔗 Message ID: #{message_id} | Session: {session_id} | User: {user_name or 'Unknown'}")
+
+                    # Сохраняем детальный лог в MySQL для анализа
+                    entity_types_for_log = {}
+                    avg_score_for_log = None
+                    if search_results:
+                        avg_score_for_log = sum(r.relevance_score for r in search_results) / len(search_results)
+                        for result in search_results:
+                            entity_type = result.metadata.get('entity_type') or getattr(result, 'entity_type', 'unknown')
+                            entity_types_for_log[entity_type] = entity_types_for_log.get(entity_type, 0) + 1
+
+                    # Вычисляем полную длину промпта
+                    full_prompt_len = len(system_prompt) + len(user_message) + len(knowledge_context or "") + len(str(zep_context or "")) + len(str(zep_history or ""))
+
+                    await log_message(
+                        message_id=message_id,
+                        user_id=str(user_id) if user_id else None,
+                        user_name=user_name,
+                        session_id=session_id,
+                        query=user_message,
+                        search_results_count=len(search_results) if search_results else 0,
+                        avg_relevance_score=avg_score_for_log,
+                        entity_types=entity_types_for_log if entity_types_for_log else None,
+                        sources=list(dict.fromkeys(sources_used)) if sources_used else None,
+                        knowledge_context=knowledge_context,
+                        zep_context=str(zep_context or "") + str(zep_history or ""),
+                        full_prompt_length=full_prompt_len,
+                        model_used=getattr(self, 'current_model', 'unknown'),
+                        response_text=bot_response
+                    )
 
                 except Exception as llm_error:
                     logger.error(f"❌ Ошибка LLM: {type(llm_error).__name__}: {llm_error}")

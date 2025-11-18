@@ -13,7 +13,7 @@ from bot.database.database import (
     DATABASE_ENABLED
 )
 
-from bot.database.models import TelegramChat, TelegramMessage
+from bot.database.models import TelegramChat, TelegramMessage, MessageLog
 
 __all__ = [
     'engine',
@@ -25,4 +25,5 @@ __all__ = [
     'DATABASE_ENABLED',
     'TelegramChat',
     'TelegramMessage',
+    'MessageLog',
 ]
