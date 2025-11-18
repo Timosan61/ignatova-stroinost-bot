@@ -325,9 +325,11 @@ async def set_webhook():
                 "message": "Webhook успешно установлен"
             }
         else:
+            logger.error(f"❌ Telegram API error: {result}")
             return {
                 "status": "error",
-                "message": "Не удалось установить webhook"
+                "message": "Не удалось установить webhook",
+                "telegram_response": result  # Показываем ответ Telegram API
             }
     except Exception as e:
         logger.error(f"❌ Ошибка установки webhook: {e}")
