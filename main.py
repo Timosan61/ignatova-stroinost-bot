@@ -329,10 +329,21 @@ except Exception as e:
 # Startup события
 @app.on_event("startup")
 async def startup():
-    """События при запуске"""
+    """
+    События при запуске приложения.
+
+    ⚠️ SERVERLESS-OPTIMIZED: Минимальные операции для быстрого cold start
+    - Webhook setup перенесён в /api/admin/setup-webhook (вызывать вручную)
+    - Только быстрая DB initialization (если включена)
+    """
     logger.info("🎯 FastAPI приложение запущено")
 
-    # Инициализация базы данных
+    # Detect environment
+    is_vercel = os.getenv("VERCEL") == "1" or os.getenv("VERCEL_ENV") is not None
+    env_name = "Vercel Serverless" if is_vercel else "Railway/Docker"
+    logger.info(f"🌍 Environment: {env_name}")
+
+    # Инициализация базы данных (быстрая операция)
     if DATABASE_ENABLED:
         try:
             logger.info("🔄 Инициализация базы данных...")
@@ -343,69 +354,18 @@ async def startup():
                 logger.warning("⚠️ База данных инициализирована, но подключение не проверено")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации базы данных: {e}")
+            logger.warning("   Бот продолжит работу без БД (graceful degradation)")
     else:
-        logger.info("⚠️ База данных отключена (DATABASE_URL не настроен)")
+        logger.info("⚠️ База данных отключена (DATABASE_URL/POSTGRES_URL не настроен)")
 
-    # Автоматическая установка webhook при запуске
-    webhook_base = os.getenv('WEBHOOK_URL', 'https://ignatova-stroinost-bot-production.up.railway.app')
-    if webhook_base:
-        # КРИТИЧЕСКИ ВАЖНО: убираем пробелы из URL (Telegram API строго к этому)
-        webhook_base = webhook_base.strip()
-
-        # Убедимся что URL правильный (с /webhook на конце)
-        webhook_url = f"{webhook_base}/webhook" if not webhook_base.endswith('/webhook') else webhook_base
-
-        logger.info(f"🔧 Попытка автоматической установки webhook: {webhook_url}")
-
-        # Retry логика с 3 попытками
-        import requests
-        import time
-
-        max_retries = 3
-        retry_delay = 2  # секунды
-
-        for attempt in range(1, max_retries + 1):
-            try:
-                logger.info(f"   Попытка {attempt}/{max_retries}...")
-
-                # Небольшая задержка перед первой попыткой (дать сервису запуститься)
-                if attempt == 1:
-                    time.sleep(1)
-
-                response = requests.post(
-                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook",
-                    json={
-                        "url": webhook_url,
-                        "allowed_updates": ["message", "business_connection", "business_message"]
-                    },
-                    timeout=10
-                )
-                result = response.json()
-
-                if result.get("ok"):
-                    logger.info(f"✅ Webhook автоматически установлен: {webhook_url}")
-                    logger.info(f"   Description: {result.get('description', 'N/A')}")
-                    break  # Успешно установлен - выходим из цикла
-                else:
-                    error_msg = result.get('description', 'Unknown error')
-                    logger.warning(f"⚠️ Попытка {attempt} не удалась: {error_msg}")
-
-                    if attempt < max_retries:
-                        logger.info(f"   Ожидание {retry_delay}с перед следующей попыткой...")
-                        time.sleep(retry_delay)
-                    else:
-                        logger.error(f"❌ Все {max_retries} попытки установки webhook исчерпаны")
-                        logger.error(f"   Последняя ошибка: {result}")
-                        logger.error(f"   💡 Webhook можно установить вручную через Telegram API")
-
-            except requests.exceptions.Timeout:
-                logger.warning(f"⚠️ Timeout при попытке {attempt}")
-                if attempt < max_retries:
-                    time.sleep(retry_delay)
-            except Exception as e:
-                logger.error(f"❌ Ошибка при попытке {attempt}: {type(e).__name__}: {e}")
-                if attempt < max_retries:
-                    time.sleep(retry_delay)
+    # 🚫 WEBHOOK SETUP УДАЛЁН ИЗ STARTUP (blocking retry loops)
+    # ✅ Используйте POST /api/admin/setup-webhook для установки webhook после deployment
+    webhook_url = os.getenv('WEBHOOK_URL')
+    if webhook_url:
+        logger.info(f"💡 Webhook URL configured: {webhook_url}/webhook")
+        logger.info(f"   📍 To activate webhook, call: POST /api/admin/setup-webhook")
+    else:
+        logger.warning("⚠️ WEBHOOK_URL не настроен. Установите переменную окружения!")
 
 @app.on_event("shutdown")
 async def shutdown():

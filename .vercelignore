@@ -1,0 +1,119 @@
+# Vercel Deployment Exclusions
+# Цель: Уменьшить размер deployment с 437 MB до ~80-100 MB
+
+# Virtual Environments (КРИТИЧНО - экономия ~350 MB)
+venv/
+venv_fastembed/
+.venv/
+env/
+ENV/
+
+# Python Cache и Temp Files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Logs (экономия ~10-50 MB)
+logs/
+*.log
+*.log.*
+log/
+
+# Scripts и Migration Tools (не нужны в runtime)
+scripts/
+migration/
+admin/
+deploy/
+
+# Documentation (не нужна в runtime)
+docs/
+KNOWLEDGE_BASE/
+*.md
+!README.md
+README_*.md
+
+# Git и Version Control
+.git/
+.gitignore
+.gitattributes
+
+# IDE и Editor файлы
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment и Secrets (БЕЗОПАСНОСТЬ)
+.env
+.env.local
+.env.*.local
+.env.backup
+.env.production
+.env.development
+
+# Test Files (не нужны в production)
+tests/
+__tests__/
+test_*.py
+*_test.py
+pytest_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Build и Distribution
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Jupyter Notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Database Files (локальные БД не нужны)
+*.db
+*.sqlite
+*.sqlite3
+
+# Временные файлы
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+
+# Railway-specific файлы (не нужны для Vercel)
+railway.json
+railway.toml
+Dockerfile
+.dockerignore
+
+# Original requirements (используем requirements-vercel.txt)
+# Не исключаем, так как может быть полезен для reference
+
+# Backup и Old Files
+*.backup
+*.old
+backup/
+
+# Large Data Files (если есть)
+*.csv
+*.xlsx
+*.json.gz
+sample-data/
+fixtures/
+testdata/
+
+# Static Assets (если не используются)
+static/
+assets/
+images/
+
+# Vercel-specific (Vercel сам управляет)
+.vercel/

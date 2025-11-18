@@ -887,3 +887,119 @@ async def test_search(request: TestSearchRequest):
             "error_type": type(e).__name__,
             "timestamp": datetime.utcnow().isoformat()
         }
+
+
+# ============================================================================
+# WEBHOOK SETUP ENDPOINT (для Vercel serverless)
+# ============================================================================
+
+class WebhookSetupResponse(BaseModel):
+    """Ответ на запрос установки webhook"""
+    success: bool
+    message: str
+    webhook_url: Optional[str] = None
+    telegram_response: Optional[Dict[str, Any]] = None
+
+
+@router.post("/setup-webhook", response_model=WebhookSetupResponse)
+async def setup_telegram_webhook(
+    admin_password: Optional[str] = Header(None, alias="X-Admin-Password")
+):
+    """
+    Установить Telegram webhook вручную (для Vercel serverless)
+
+    ⚠️ ВАЖНО: Этот endpoint должен быть вызван ОДИН РАЗ после deployment на Vercel
+
+    В Vercel serverless окружении webhook setup удалён из startup events
+    (чтобы избежать blocking retry loops при cold start).
+
+    Используйте этот endpoint для установки webhook после deployment:
+    ```bash
+    curl -X POST https://your-project.vercel.app/api/admin/setup-webhook
+    ```
+
+    Args:
+        admin_password: Админский пароль (header X-Admin-Password, опционально)
+
+    Returns:
+        WebhookSetupResponse с результатом установки
+    """
+    # Проверка пароля (если установлен)
+    if not verify_admin_password(admin_password):
+        raise HTTPException(status_code=403, detail="Invalid admin password")
+
+    # Получаем WEBHOOK_URL из environment
+    webhook_base = os.getenv('WEBHOOK_URL')
+    if not webhook_base:
+        raise HTTPException(
+            status_code=500,
+            detail="WEBHOOK_URL environment variable not set. Please configure it in Vercel dashboard."
+        )
+
+    # Очищаем URL от пробелов (Telegram API strict к этому)
+    webhook_base = webhook_base.strip()
+
+    # Формируем полный webhook URL
+    webhook_url = f"{webhook_base}/webhook" if not webhook_base.endswith('/webhook') else webhook_base
+
+    # Получаем TELEGRAM_BOT_TOKEN
+    telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+    if not telegram_bot_token:
+        raise HTTPException(
+            status_code=500,
+            detail="TELEGRAM_BOT_TOKEN environment variable not set"
+        )
+
+    logger.info(f"🔧 Setting up Telegram webhook: {webhook_url}")
+
+    try:
+        import requests
+
+        # Вызываем Telegram API setWebhook
+        response = requests.post(
+            f"https://api.telegram.org/bot{telegram_bot_token}/setWebhook",
+            json={
+                "url": webhook_url,
+                "allowed_updates": ["message", "business_connection", "business_message"]
+            },
+            timeout=15
+        )
+
+        result = response.json()
+
+        if result.get("ok"):
+            logger.info(f"✅ Webhook successfully set: {webhook_url}")
+            logger.info(f"   Description: {result.get('description', 'N/A')}")
+
+            return WebhookSetupResponse(
+                success=True,
+                message="Webhook set successfully",
+                webhook_url=webhook_url,
+                telegram_response=result
+            )
+        else:
+            error_msg = result.get('description', 'Unknown error')
+            logger.error(f"❌ Webhook setup failed: {error_msg}")
+
+            return WebhookSetupResponse(
+                success=False,
+                message=f"Telegram API error: {error_msg}",
+                webhook_url=webhook_url,
+                telegram_response=result
+            )
+
+    except requests.exceptions.Timeout:
+        error_msg = "Request to Telegram API timed out (15s)"
+        logger.error(f"❌ {error_msg}")
+        raise HTTPException(status_code=504, detail=error_msg)
+
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Request to Telegram API failed: {type(e).__name__}: {e}"
+        logger.error(f"❌ {error_msg}")
+        raise HTTPException(status_code=502, detail=error_msg)
+
+    except Exception as e:
+        error_msg = f"Unexpected error: {type(e).__name__}: {e}"
+        logger.error(f"❌ {error_msg}")
+        logger.exception("Full traceback:")
+        raise HTTPException(status_code=500, detail=error_msg)

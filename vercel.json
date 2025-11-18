@@ -1,0 +1,68 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "name": "ignatova-stroinost-bot",
+
+  "functions": {
+    "main.py": {
+      "runtime": "python3.12",
+      "memory": 1024,
+      "maxDuration": 10,
+      "excludeFiles": "{tests/**,scripts/**,logs/**,venv/**,venv_fastembed/**,admin/**,deploy/**,docs/**,migration/**,__pycache__/**,*.pyc,*.log}"
+    }
+  },
+
+  "routes": [
+    {
+      "src": "/webhook",
+      "methods": ["POST"],
+      "dest": "/main.py"
+    },
+    {
+      "src": "/health",
+      "methods": ["GET"],
+      "dest": "/main.py"
+    },
+    {
+      "src": "/webhook/info",
+      "methods": ["GET"],
+      "dest": "/main.py"
+    },
+    {
+      "src": "/api/admin/setup-webhook",
+      "methods": ["POST"],
+      "dest": "/main.py"
+    },
+    {
+      "src": "/api/admin/(.*)",
+      "methods": ["GET", "POST"],
+      "dest": "/main.py"
+    },
+    {
+      "src": "/api/(.*)",
+      "methods": ["GET", "POST"],
+      "dest": "/main.py"
+    },
+    {
+      "src": "/debug/(.*)",
+      "methods": ["GET"],
+      "dest": "/main.py"
+    },
+    {
+      "src": "/",
+      "methods": ["GET"],
+      "dest": "/main.py"
+    }
+  ],
+
+  "env": {
+    "PYTHONPATH": "/var/task"
+  },
+
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/main.py"
+    }
+  ]
+}
