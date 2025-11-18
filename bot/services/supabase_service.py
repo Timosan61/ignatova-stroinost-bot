@@ -40,6 +40,15 @@ except ImportError:
     OPENAI_AVAILABLE = False
     logging.warning("⚠️ openai SDK not installed. Install: pip install openai")
 
+# Опциональный импорт мониторинга
+try:
+    from bot.monitoring import get_metrics
+    MONITORING_AVAILABLE = True
+except ImportError:
+    MONITORING_AVAILABLE = False
+    get_metrics = None
+    logging.warning("⚠️ Мониторинг embeddings не доступен")
+
 from bot.config import (
     SUPABASE_URL,
     SUPABASE_SERVICE_KEY,
@@ -135,6 +144,8 @@ class SupabaseService:
         Raises:
             Exception: Если генерация embedding не удалась
         """
+        import time
+
         # Lazy initialization: создать OpenAI client при первом использовании
         # Это гарантирует что мы используем актуальный OPENAI_API_KEY из environment
         if not self.openai_client:
@@ -145,14 +156,49 @@ class SupabaseService:
             self.openai_client = OpenAI(api_key=api_key)
             logger.info(f"✅ OpenAI client initialized (lazy): API key ending in ...{api_key[-4:]}")
 
+        # Начало отслеживания метрик
+        start_time = time.time()
+        error_occurred = False
+
         try:
             response = self.openai_client.embeddings.create(
                 input=text,
                 model=self.embedding_model
             )
-            return response.data[0].embedding
+            embedding = response.data[0].embedding
+
+            # Отслеживание метрик (если доступно)
+            if MONITORING_AVAILABLE and get_metrics:
+                latency_ms = (time.time() - start_time) * 1000
+                # Примерная оценка токенов: 1 токен ≈ 4 символа для английского текста
+                estimated_tokens = len(text) // 4
+
+                metrics = get_metrics()
+                metrics.add_call(
+                    tokens=estimated_tokens,
+                    latency_ms=latency_ms,
+                    error=False
+                )
+                logger.debug(f"📊 Embedding метрики: {latency_ms:.1f}ms, ~{estimated_tokens} tokens")
+
+            return embedding
+
         except Exception as e:
+            error_occurred = True
             logger.error(f"❌ Failed to generate embedding: {e}")
+
+            # Отслеживание ошибок
+            if MONITORING_AVAILABLE and get_metrics:
+                latency_ms = (time.time() - start_time) * 1000
+                estimated_tokens = len(text) // 4
+
+                metrics = get_metrics()
+                metrics.add_call(
+                    tokens=estimated_tokens,
+                    latency_ms=latency_ms,
+                    error=True
+                )
+
             raise
 
     async def health_check(self) -> Dict[str, Any]:

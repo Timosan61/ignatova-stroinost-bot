@@ -65,6 +65,16 @@ except ImportError as e:
     DATABASE_ENABLED = False
     api_router = None
 
+# Импорт мониторинга
+try:
+    from bot.monitoring import get_metrics
+    MONITORING_ENABLED = True
+    print("✅ Мониторинг embeddings загружен")
+except ImportError as e:
+    print(f"⚠️ Мониторинг недоступен: {e}")
+    MONITORING_ENABLED = False
+    get_metrics = None
+
 # Настройки
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 WEBHOOK_SECRET_TOKEN = os.getenv("WEBHOOK_SECRET_TOKEN", "QxLZquGScgx1QmwsuUSfJU6HpyTUJoHf2XD4QisrjCk")
@@ -219,6 +229,32 @@ async def reload_instruction_endpoint():
         }
     except Exception as e:
         logger.error(f"❌ Ошибка перезагрузки инструкции: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+@app.get("/api/admin/embedding/stats")
+async def get_embedding_stats():
+    """Статистика производительности embeddings
+
+    Использование: curl http://localhost:8000/api/admin/embedding/stats
+    """
+    if not MONITORING_ENABLED or not get_metrics:
+        return {
+            "status": "unavailable",
+            "message": "Мониторинг embeddings не инициализирован"
+        }
+
+    try:
+        metrics = get_metrics()
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "metrics": metrics.get_summary()
+        }
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения метрик: {e}")
         return {
             "status": "error",
             "message": str(e)

@@ -14,6 +14,7 @@ from .config import (
     ANTHROPIC_MODEL, ZEP_API_KEY, VOICE_ENABLED, TELEGRAM_BOT_TOKEN,
     SEARCH_LIMIT
 )
+from .validators import validate_response
 
 # Опциональный импорт голосового сервиса
 try:
@@ -666,6 +667,17 @@ class TextilProAgent:
             # except Exception as graphiti_error:
             #     # Не критично - если Graphiti недоступен, бот продолжает работать
             #     logger.warning(f"⚠️ Graphiti недоступен, диалог не сохранён в knowledge graph: {graphiti_error}")
+
+            # === ВАЛИДАЦИЯ ОТВЕТА ПЕРЕД ОТПРАВКОЙ ===
+            validation_result = validate_response(bot_response, student_name=user_name)
+
+            if not validation_result["valid"]:
+                logger.error(f"❌ ВАЛИДАЦИЯ НЕ ПРОШЛА: {validation_result['errors']}")
+                # Логируем проблемный ответ для анализа
+                logger.error(f"Проблемный ответ:\n{bot_response}")
+
+            if validation_result["warnings"]:
+                logger.warning(f"⚠️ Предупреждения валидации: {validation_result['warnings']}")
 
             return bot_response
 
