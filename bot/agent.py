@@ -336,7 +336,7 @@ class TextilProAgent:
         """
 
         # Timeout для Vercel serverless (8s, оставляя 2s буфер для 10s limit)
-        AI_REQUEST_TIMEOUT = 8.0
+        AI_REQUEST_TIMEOUT = 15.0  # Увеличено с 8s (timeout для больших контекстов)
 
         # Сначала пробуем OpenAI
         if self.openai_client:
@@ -585,7 +585,9 @@ class TextilProAgent:
                     if knowledge_context:
                         bot_response = f"⚠️ AI временно недоступен, но нашла информацию в базе знаний:\n\n{knowledge_context[:500]}"
                         if sources_used:
-                            sources_text = ", ".join(sources_used)
+                            # Убираем дубликаты из sources
+                            unique_sources = list(dict.fromkeys(sources_used))
+                            sources_text = ", ".join(unique_sources[:3])  # Максимум 3 источника
                             bot_response += f"\n\n📚 **Источник:** {sources_text}"
                         bot_response += "\n\n🔄 Попробуйте задать вопрос еще раз или уточните запрос.\n\nКристина, ignatova-stroinost"
                     else:
