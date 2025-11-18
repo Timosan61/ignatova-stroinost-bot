@@ -294,9 +294,10 @@ async def debug_env():
 @app.get("/webhook/set")
 async def set_webhook():
     """Установка webhook"""
-    webhook_base = os.getenv('WEBHOOK_URL', 'https://ignatova-stroinost-bot-production.up.railway.app')
-    # Убедимся что URL правильный (с /webhook на конце)
-    webhook_url = f"{webhook_base}/webhook" if not webhook_base.endswith('/webhook') else webhook_base
+    # Правильный production URL
+    webhook_url = "https://ignatova-stroinost-bot-production.up.railway.app/webhook"
+
+    logger.info(f"🔧 Попытка установить webhook: {webhook_url}")
 
     try:
         # ВАЖНО: не используем secret_token - telegram-bot библиотека не работает с ним
