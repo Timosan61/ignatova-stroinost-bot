@@ -225,11 +225,13 @@ class KnowledgeSearchService:
                     boost_factor = boosting_factors.get(entity_type, 1.0)
                     boosted_score = r.get("score", 0.0) * boost_factor
 
+                    # Добавляем entity_type в metadata для debug info
+                    metadata = {**r.get("metadata", {}), "entity_type": entity_type}
                     results.append(SearchResult(
                         content=r.get("content", ""),
-                        source="SUPABASE_VECTOR_STORE",
+                        source=f"supabase_{entity_type}",
                         relevance_score=boosted_score,
-                        metadata=r.get("metadata", {}),
+                        metadata=metadata,
                         search_type="semantic"
                     ))
 
