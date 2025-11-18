@@ -444,30 +444,34 @@ class TextilProAgent:
                 # Если базы знаний нет - возвращаем fallback сообщение с DEBUG INFO
                 user_name_display = user_name if user_name else "Дорогая"
 
-                # Формируем DEBUG INFO для диагностики
-                debug_info = "\n\n---\n🔍 **DEBUG INFO:**\n"
-                debug_info += f"⚠️ **Status:** NO RESULTS FOUND\n"
-                debug_info += f"📚 Knowledge Base: ❌ Пустой результат поиска\n"
-                debug_info += f"📊 **Results:** 0 найдено (возможно threshold={0.3} слишком высокий или exception)\n"
+                # Формируем DEBUG INFO для диагностики (если включено)
+                from .config import DEBUG_INFO_ENABLED
+                debug_info = ""
 
-                # Информация о системе поиска
-                if KNOWLEDGE_SEARCH_AVAILABLE:
-                    from bot.services.knowledge_search import get_knowledge_search_service
-                    knowledge_service = get_knowledge_search_service()
+                if DEBUG_INFO_ENABLED:
+                    debug_info = "\n\n---\n🔍 **DEBUG INFO:**\n"
+                    debug_info += f"⚠️ **Status:** NO RESULTS FOUND\n"
+                    debug_info += f"📚 Knowledge Base: ❌ Пустой результат поиска\n"
+                    debug_info += f"📊 **Results:** 0 найдено (возможно threshold={0.3} слишком высокий или exception)\n"
 
-                    if knowledge_service.use_supabase and knowledge_service.supabase_enabled:
-                        debug_info += "🟣 **Search System:** SUPABASE Vector DB\n"
-                    elif knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
-                        debug_info += "🔵 **Search System:** QDRANT Vector DB\n"
-                    elif knowledge_service.graphiti_enabled:
-                        debug_info += "🟢 **Search System:** GRAPHITI Knowledge Graph\n"
-                    else:
-                        debug_info += "⚪ **Search System:** FALLBACK (local files)\n"
+                    # Информация о системе поиска
+                    if KNOWLEDGE_SEARCH_AVAILABLE:
+                        from bot.services.knowledge_search import get_knowledge_search_service
+                        knowledge_service = get_knowledge_search_service()
 
-                # Подсказка для пользователя
-                debug_info += f"💡 **Hint:** Попробуйте переформулировать вопрос или проверьте логи Railway\n"
+                        if knowledge_service.use_supabase and knowledge_service.supabase_enabled:
+                            debug_info += "🟣 **Search System:** SUPABASE Vector DB\n"
+                        elif knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
+                            debug_info += "🔵 **Search System:** QDRANT Vector DB\n"
+                        elif knowledge_service.graphiti_enabled:
+                            debug_info += "🟢 **Search System:** GRAPHITI Knowledge Graph\n"
+                        else:
+                            debug_info += "⚪ **Search System:** FALLBACK (local files)\n"
 
-                return f"{user_name_display}, по этому вопросу рекомендую обратиться к Наталье напрямую 🌸{debug_info}"
+                    # Подсказка для пользователя
+                    debug_info += f"💡 **Hint:** Попробуйте переформулировать вопрос или проверьте логи Railway\n"
+
+                return f"{user_name_display}, по этому вопросу рекомендую написать в поддержку курса или обратиться к @support_ignatova 🌸{debug_info}"
 
             # Добавляем контекст и историю в системный промпт
             if zep_context:
@@ -505,68 +509,71 @@ class TextilProAgent:
    • Model: {getattr(self, 'current_model', 'unknown')}
 """)
 
-                    # Добавляем отладочную информацию в ответ бота
-                    debug_info = "\n\n---\n🔍 **DEBUG INFO:**\n"
+                    # Добавляем отладочную информацию в ответ бота (если включено)
+                    from .config import DEBUG_INFO_ENABLED
 
-                    # Информация о системе поиска
-                    if KNOWLEDGE_SEARCH_AVAILABLE:
-                        from bot.services.knowledge_search import get_knowledge_search_service
-                        knowledge_service = get_knowledge_search_service()
+                    if DEBUG_INFO_ENABLED:
+                        debug_info = "\n\n---\n🔍 **DEBUG INFO:**\n"
 
-                        if knowledge_service.use_supabase and knowledge_service.supabase_enabled:
-                            debug_info += "🟣 **Search System:** SUPABASE Vector DB\n"
-                        elif knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
-                            debug_info += "🔵 **Search System:** QDRANT Vector DB\n"
-                        elif knowledge_service.graphiti_enabled:
-                            debug_info += "🟢 **Search System:** GRAPHITI Knowledge Graph\n"
-                        else:
-                            debug_info += "⚪ **Search System:** FALLBACK (local files)\n"
+                        # Информация о системе поиска
+                        if KNOWLEDGE_SEARCH_AVAILABLE:
+                            from bot.services.knowledge_search import get_knowledge_search_service
+                            knowledge_service = get_knowledge_search_service()
 
-                    debug_info += f"📚 Knowledge Base: {'✅ Использована' if knowledge_context else '❌ Не использована'}\n"
+                            if knowledge_service.use_supabase and knowledge_service.supabase_enabled:
+                                debug_info += "🟣 **Search System:** SUPABASE Vector DB\n"
+                            elif knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
+                                debug_info += "🔵 **Search System:** QDRANT Vector DB\n"
+                            elif knowledge_service.graphiti_enabled:
+                                debug_info += "🟢 **Search System:** GRAPHITI Knowledge Graph\n"
+                            else:
+                                debug_info += "⚪ **Search System:** FALLBACK (local files)\n"
 
-                    # Детали результатов поиска
-                    if search_results:
-                        debug_info += f"📊 **Results:** {len(search_results)} найдено\n"
+                        debug_info += f"📚 Knowledge Base: {'✅ Использована' if knowledge_context else '❌ Не использована'}\n"
 
-                        # Средняя релевантность
-                        avg_score = sum(r.relevance_score for r in search_results) / len(search_results)
-                        debug_info += f"⭐ **Avg Relevance:** {avg_score:.2f}\n"
+                        # Детали результатов поиска
+                        if search_results:
+                            debug_info += f"📊 **Results:** {len(search_results)} найдено\n"
 
-                        # Разбивка по типам entities (metadata)
-                        entity_types = {}
-                        for result in search_results:
-                            # Поддержка разных источников: entity_type может быть в metadata или напрямую в result
-                            entity_type = result.metadata.get('entity_type') or getattr(result, 'entity_type', 'unknown')
-                            entity_types[entity_type] = entity_types.get(entity_type, 0) + 1
+                            # Средняя релевантность
+                            avg_score = sum(r.relevance_score for r in search_results) / len(search_results)
+                            debug_info += f"⭐ **Avg Relevance:** {avg_score:.2f}\n"
 
-                        if entity_types:
-                            types_str = ', '.join([f"{k}:{v}" for k, v in entity_types.items()])
-                            debug_info += f"📁 **Entity Types:** {types_str}\n"
+                            # Разбивка по типам entities (metadata)
+                            entity_types = {}
+                            for result in search_results:
+                                # Поддержка разных источников: entity_type может быть в metadata или напрямую в result
+                                entity_type = result.metadata.get('entity_type') or getattr(result, 'entity_type', 'unknown')
+                                entity_types[entity_type] = entity_types.get(entity_type, 0) + 1
 
-                        # Top sources
-                        if sources_used:
-                            debug_info += f"📖 **Sources ({len(sources_used)}):** {', '.join(sources_used[:3])}\n"
+                            if entity_types:
+                                types_str = ', '.join([f"{k}:{v}" for k, v in entity_types.items()])
+                                debug_info += f"📁 **Entity Types:** {types_str}\n"
 
-                    # Check if Zep memory has actual content (non-empty strings)
-                    has_zep = (zep_context and len(str(zep_context).strip()) > 0) or \
-                              (zep_history and len(str(zep_history).strip()) > 0)
-                    debug_info += f"🧠 Zep Memory: {'✅ Да' if has_zep else '❌ Нет'}\n"
-                    debug_info += f"🤖 Model: {getattr(self, 'current_model', 'unknown')}\n"
+                            # Top sources
+                            if sources_used:
+                                debug_info += f"📖 **Sources ({len(sources_used)}):** {', '.join(sources_used[:3])}\n"
 
-                    # Правильный расчет ПОЛНОГО контекста (system + knowledge + zep + user)
-                    total_context_length = (
-                        len(system_prompt) +
-                        len(user_message) +
-                        len(knowledge_context) +
-                        len(zep_context or "") +
-                        len(zep_history or "")
-                    )
+                        # Check if Zep memory has actual content (non-empty strings)
+                        has_zep = (zep_context and len(str(zep_context).strip()) > 0) or \
+                                  (zep_history and len(str(zep_history).strip()) > 0)
+                        debug_info += f"🧠 Zep Memory: {'✅ Да' if has_zep else '❌ Нет'}\n"
+                        debug_info += f"🤖 Model: {getattr(self, 'current_model', 'unknown')}\n"
 
-                    # Детальная разбивка контекста
-                    context_breakdown = f"System:{len(system_prompt)} | Knowledge:{len(knowledge_context)} | Zep:{len(zep_context or '') + len(zep_history or '')} | User:{len(user_message)}"
-                    debug_info += f"📏 Total Context: {total_context_length:,} chars ({context_breakdown})\n"
+                        # Правильный расчет ПОЛНОГО контекста (system + knowledge + zep + user)
+                        total_context_length = (
+                            len(system_prompt) +
+                            len(user_message) +
+                            len(knowledge_context) +
+                            len(zep_context or "") +
+                            len(zep_history or "")
+                        )
 
-                    bot_response += debug_info
+                        # Детальная разбивка контекста
+                        context_breakdown = f"System:{len(system_prompt)} | Knowledge:{len(knowledge_context)} | Zep:{len(zep_context or '') + len(zep_history or '')} | User:{len(user_message)}"
+                        debug_info += f"📏 Total Context: {total_context_length:,} chars ({context_breakdown})\n"
+
+                        bot_response += debug_info
 
                 except Exception as llm_error:
                     logger.error(f"❌ Ошибка LLM: {type(llm_error).__name__}: {llm_error}")

@@ -57,6 +57,9 @@ VOICE_LANGUAGE = 'ru'  # Язык по умолчанию для транскр�
 VOICE_MAX_DURATION = 600  # 10 минут максимальная длительность
 VOICE_MAX_SIZE_MB = 25  # 25MB максимальный размер файла
 
+# Debug Configuration
+DEBUG_INFO_ENABLED = os.getenv('DEBUG_INFO_ENABLED', 'false').lower() in ('true', '1', 'yes')
+
 if not TELEGRAM_BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не найден в переменных окружения")
 # Проверки API ключей (не критичные для запуска)
