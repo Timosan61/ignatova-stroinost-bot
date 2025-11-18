@@ -195,7 +195,7 @@ class TextilProAgent:
                     query=query,
                     strategy=strategy,
                     limit=limit,
-                    min_relevance=0.3  # Снижен threshold для лучшего поиска
+                    min_relevance=0.15  # Снижен threshold для числовых запросов (урок 27, день 5)
                 )
 
                 if search_results:
@@ -434,8 +434,13 @@ class TextilProAgent:
             zep_history = await self.get_zep_recent_messages(session_id)
 
             # Добавляем контекст из базы знаний с ГИБКИМ RAG pattern
-            # Проверяем что контекст содержит реальную информацию (не только заголовок)
-            if knowledge_context and len(knowledge_context.strip()) > 100:
+            # Проверяем что контекст содержит реальную информацию (не fallback текст)
+            has_valid_context = (
+                knowledge_context and
+                len(knowledge_context.strip()) > 50 and
+                "не найдена" not in knowledge_context.lower()
+            )
+            if has_valid_context:
                 logger.info(f"✅ Добавляем контекст из базы знаний в system prompt (длина: {len(knowledge_context)} символов)")
                 system_prompt += f"""
 
@@ -461,10 +466,13 @@ class TextilProAgent:
 ВАЖНО: Следуй инструкциям по длине ответа и количеству примеров из instruction.json!
 """
             else:
-                # Логируем почему контекст пустой/короткий
+                # Логируем почему контекст невалидный
                 if not knowledge_context:
                     logger.warning(f"⚠️ knowledge_context пустой (None или empty string)")
-                elif len(knowledge_context.strip()) <= 100:
+                elif "не найдена" in knowledge_context.lower():
+                    logger.warning(f"⚠️ knowledge_context содержит fallback текст 'не найдена'")
+                    logger.warning(f"   Content: '{knowledge_context[:200]}...'")
+                elif len(knowledge_context.strip()) <= 50:
                     logger.warning(f"⚠️ knowledge_context слишком короткий ({len(knowledge_context)} символов)")
                     logger.warning(f"   Content preview: '{knowledge_context[:200]}...'")
                 else:
@@ -480,7 +488,7 @@ class TextilProAgent:
                     debug_info = "\n\n---\n🔍 **DEBUG INFO:**\n"
                     debug_info += f"⚠️ **Status:** NO RESULTS FOUND\n"
                     debug_info += f"📚 Knowledge Base: ❌ Пустой результат поиска\n"
-                    debug_info += f"📊 **Results:** 0 найдено (возможно threshold={0.3} слишком высокий или exception)\n"
+                    debug_info += f"📊 **Results:** 0 найдено (возможно threshold=0.15 слишком высокий или exception)\n"
 
                     # Информация о системе поиска
                     if KNOWLEDGE_SEARCH_AVAILABLE:
