@@ -24,6 +24,7 @@ class EntityType(str, Enum):
     CORRECTION = "correction"
     BRAINWRITE = "brainwrite"
     FAQ = "faq"
+    GLOSSARY = "glossary"
     EPISODE = "episode"
 
 
@@ -316,6 +317,41 @@ class FAQEntry(BaseModel):
                 "",
                 f"Ключевые слова: {', '.join(self.keywords)}"
             ])
+
+        return "\n".join(parts)
+
+
+class GlossaryEntry(BaseModel):
+    """
+    Термин из глоссария курса
+
+    Определение ключевого термина или понятия из уроков.
+    """
+    term_id: Optional[str] = Field(None, description="Уникальный ID термина")
+    term: str = Field(..., min_length=2, description="Название термина")
+    definition: str = Field(..., min_length=10, description="Определение термина")
+
+    # Metadata
+    lesson_number: Optional[int] = Field(None, description="Номер урока где встречается термин")
+    keywords: List[str] = Field(default_factory=list, description="Ключевые слова")
+    source_file: Optional[str] = Field(None, description="Исходный файл")
+
+    @property
+    def entity_type(self) -> EntityType:
+        return EntityType.GLOSSARY
+
+    def to_episode_content(self) -> str:
+        """Конвертировать в текст для Graphiti Episode"""
+        parts = [
+            "ГЛОССАРИЙ (ТЕРМИН)",
+            "",
+            f"Термин: {self.term}",
+            "",
+            f"Определение: {self.definition}"
+        ]
+
+        if self.lesson_number:
+            parts.append(f"Урок: {self.lesson_number}")
 
         return "\n".join(parts)
 

@@ -278,6 +278,26 @@ class SupabaseMigration:
 
             logger.info(f"✅ Brainwrite Examples parsed: {len(brainwrites)} examples")
 
+        # 6. Parse Glossary Terms
+        glossary_file = self.kb_dir / "KNOWLEDGE_BASE_FULL.md"
+        if glossary_file.exists():
+            logger.info("📖 Parsing Glossary Terms...")
+            glossary_terms = parser.parse_glossary(glossary_file)
+            for idx, term in enumerate(glossary_terms):
+                entity = {
+                    "id": f"glossary_{idx}",
+                    "entity_type": "glossary",
+                    "title": term.term,
+                    "content": f"{term.term}: {term.definition}",
+                    "metadata": {
+                        "lesson_number": term.lesson_number,
+                        "keywords": term.keywords
+                    }
+                }
+                all_entities.append(entity)
+
+            logger.info(f"✅ Glossary Terms parsed: {len(glossary_terms)} terms")
+
         logger.info(f"📊 Total entities parsed: {len(all_entities)}")
         return all_entities
 

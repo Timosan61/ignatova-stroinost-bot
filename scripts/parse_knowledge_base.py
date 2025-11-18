@@ -30,7 +30,8 @@ from bot.models.knowledge_entities import (
     StudentQuestion,
     CuratorCorrection,
     BrainwriteExample,
-    FAQEntry
+    FAQEntry,
+    GlossaryEntry
 )
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -487,6 +488,110 @@ class KnowledgeBaseParser:
         # Упрощенная логика: весь текст = корректировка
         return error_type, "", text, None
 
+    # ==================== GLOSSARY PARSER ====================
+
+    def parse_glossary(self, file_path: Path) -> List[GlossaryEntry]:
+        """
+        Парсинг терминов из секций КЛЮЧЕВЫЕ ТЕРМИНЫ И ПОНЯТИЯ
+
+        Args:
+            file_path: Путь к KNOWLEDGE_BASE_FULL.md
+
+        Returns:
+            List of GlossaryEntry entities
+        """
+        logger.info(f"Parsing glossary from {file_path}")
+
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        glossary_entries = []
+
+        # Паттерн для секций с терминами
+        section_pattern = r'(?:##?\s*)?📚\s*(?:\*\*)?КЛЮЧЕВЫЕ ТЕРМИНЫИ ПОНЯТИЯ(?:\*\*)?:?\s*\n((?:- \*\*[^*]+\*\*:[^\n]+\n?)+)'
+
+        # Альтернативный паттерн для вариаций
+        alt_section_pattern = r'📚\s*(?:\*\*)?КЛЮЧЕВЫЕ ТЕРМИНЫ(?:\*\*)?:?\s*\n((?:- \*\*[^*]+\*\*:[^\n]+\n?)+)'
+
+        # Паттерн для отдельных терминов
+        term_pattern = r'- \*\*([^*]+)\*\*:\s*(.+)'
+
+        # Найти все секции с терминами
+        sections = list(re.finditer(section_pattern, content, re.IGNORECASE))
+        sections.extend(list(re.finditer(alt_section_pattern, content, re.IGNORECASE)))
+
+        # Если паттерны не сработали, ищем термины напрямую
+        if not sections:
+            logger.info("Using direct term search (no sections found)")
+            # Найти все термины в формате - **Термин**: описание
+            all_terms = re.findall(term_pattern, content)
+
+            for idx, (term, definition) in enumerate(all_terms):
+                term = term.strip()
+                definition = definition.strip()
+
+                if len(definition) < 10:
+                    continue
+
+                entry = GlossaryEntry(
+                    term_id=f"glossary_{idx}",
+                    term=term,
+                    definition=definition,
+                    lesson_number=None,
+                    keywords=self._extract_keywords(f"{term} {definition}"),
+                    source_file=str(file_path.name)
+                )
+                glossary_entries.append(entry)
+        else:
+            # Парсить термины из найденных секций
+            term_idx = 0
+            for section_match in sections:
+                section_content = section_match.group(1) if section_match.lastindex else section_match.group(0)
+
+                # Определить номер урока по позиции в файле
+                lesson_number = self._find_lesson_number(content, section_match.start())
+
+                # Извлечь термины из секции
+                terms = re.findall(term_pattern, section_content)
+
+                for term, definition in terms:
+                    term = term.strip()
+                    definition = definition.strip()
+
+                    if len(definition) < 10:
+                        continue
+
+                    entry = GlossaryEntry(
+                        term_id=f"glossary_{term_idx}",
+                        term=term,
+                        definition=definition,
+                        lesson_number=lesson_number,
+                        keywords=self._extract_keywords(f"{term} {definition}"),
+                        source_file=str(file_path.name)
+                    )
+                    glossary_entries.append(entry)
+                    term_idx += 1
+
+        # Удалить дубликаты по термину
+        seen_terms = set()
+        unique_entries = []
+        for entry in glossary_entries:
+            if entry.term.lower() not in seen_terms:
+                seen_terms.add(entry.term.lower())
+                unique_entries.append(entry)
+
+        logger.info(f"Parsed {len(unique_entries)} unique glossary terms")
+        return unique_entries
+
+    def _find_lesson_number(self, content: str, position: int) -> Optional[int]:
+        """Найти номер урока по позиции в файле"""
+        # Ищем последний заголовок урока перед позицией
+        lesson_pattern = r'# УРОК (\d+):'
+        matches = list(re.finditer(lesson_pattern, content[:position]))
+        if matches:
+            return int(matches[-1].group(1))
+        return None
+
     # ==================== MAIN PARSING ====================
 
     def parse_all(self) -> Dict[str, List[Any]]:
@@ -503,7 +608,8 @@ class KnowledgeBaseParser:
             "lessons": [],
             "corrections": [],
             "questions": [],
-            "brainwrites": []
+            "brainwrites": [],
+            "glossary": []
         }
 
         # 1. Parse FAQ
@@ -541,6 +647,13 @@ class KnowledgeBaseParser:
         else:
             logger.warning(f"Brainwrites file not found: {brainwrites_file}")
 
+        # 6. Parse Glossary Terms
+        glossary_file = self.kb_dir / "KNOWLEDGE_BASE_FULL.md"
+        if glossary_file.exists():
+            results["glossary"] = self.parse_glossary(glossary_file)
+        else:
+            logger.warning(f"Glossary source file not found: {glossary_file}")
+
         # Summary
         total_entities = sum(len(v) for v in results.values())
         logger.info(f"\n{'=' * 60}")
@@ -550,6 +663,7 @@ class KnowledgeBaseParser:
         logger.info(f"  Corrections: {len(results['corrections'])}")
         logger.info(f"  Questions: {len(results['questions'])}")
         logger.info(f"  Brainwrites: {len(results['brainwrites'])}")
+        logger.info(f"  Glossary terms: {len(results['glossary'])}")
         logger.info(f"{'=' * 60}\n")
 
         return results
