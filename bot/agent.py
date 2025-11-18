@@ -538,69 +538,43 @@ class TextilProAgent:
 
                     # Добавляем отладочную информацию в ответ бота (если включено)
                     from .config import DEBUG_INFO_ENABLED
+                    import uuid
+
+                    # Генерируем уникальный Message ID для трейсинга
+                    message_id = f"M{uuid.uuid4().hex[:7]}"
 
                     if DEBUG_INFO_ENABLED:
-                        debug_info = "\n\n---\n🔍 **DEBUG INFO:**\n"
+                        # Компактный DEBUG INFO с Message ID для идентификации
+                        debug_info = f"\n\n---\n🔍 **ID: #{message_id}**\n"
 
-                        # Информация о системе поиска
-                        if KNOWLEDGE_SEARCH_AVAILABLE:
-                            from bot.services.knowledge_search import get_knowledge_search_service
-                            knowledge_service = get_knowledge_search_service()
+                        # Статус базы знаний и результаты
+                        kb_status = "✅" if knowledge_context else "❌"
 
-                            if knowledge_service.use_supabase and knowledge_service.supabase_enabled:
-                                debug_info += "🟣 **Search System:** SUPABASE Vector DB\n"
-                            elif knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
-                                debug_info += "🔵 **Search System:** QDRANT Vector DB\n"
-                            elif knowledge_service.graphiti_enabled:
-                                debug_info += "🟢 **Search System:** GRAPHITI Knowledge Graph\n"
-                            else:
-                                debug_info += "⚪ **Search System:** FALLBACK (local files)\n"
-
-                        debug_info += f"📚 Knowledge Base: {'✅ Использована' if knowledge_context else '❌ Не использована'}\n"
-
-                        # Детали результатов поиска
                         if search_results:
-                            debug_info += f"📊 **Results:** {len(search_results)} найдено\n"
-
-                            # Средняя релевантность
                             avg_score = sum(r.relevance_score for r in search_results) / len(search_results)
-                            debug_info += f"⭐ **Avg Relevance:** {avg_score:.2f}\n"
+                            debug_info += f"📚 Knowledge: {kb_status} | 📊 Results: {len(search_results)} | ⭐ Relevance: {avg_score:.2f}\n"
 
-                            # Разбивка по типам entities (metadata)
+                            # Разбивка по типам entities
                             entity_types = {}
                             for result in search_results:
-                                # Поддержка разных источников: entity_type может быть в metadata или напрямую в result
                                 entity_type = result.metadata.get('entity_type') or getattr(result, 'entity_type', 'unknown')
                                 entity_types[entity_type] = entity_types.get(entity_type, 0) + 1
 
                             if entity_types:
                                 types_str = ', '.join([f"{k}:{v}" for k, v in entity_types.items()])
-                                debug_info += f"📁 **Entity Types:** {types_str}\n"
+                                debug_info += f"📁 Types: {types_str}\n"
+                        else:
+                            debug_info += f"📚 Knowledge: {kb_status} | 📊 Results: 0\n"
 
-                            # Top sources
-                            if sources_used:
-                                debug_info += f"📖 **Sources ({len(sources_used)}):** {', '.join(sources_used[:3])}\n"
-
-                        # Check if Zep memory has actual content (non-empty strings)
+                        # Zep Memory статус
                         has_zep = (zep_context and len(str(zep_context).strip()) > 0) or \
                                   (zep_history and len(str(zep_history).strip()) > 0)
-                        debug_info += f"🧠 Zep Memory: {'✅ Да' if has_zep else '❌ Нет'}\n"
-                        debug_info += f"🤖 Model: {getattr(self, 'current_model', 'unknown')}\n"
-
-                        # Правильный расчет ПОЛНОГО контекста (system + knowledge + zep + user)
-                        total_context_length = (
-                            len(system_prompt) +
-                            len(user_message) +
-                            len(knowledge_context) +
-                            len(zep_context or "") +
-                            len(zep_history or "")
-                        )
-
-                        # Детальная разбивка контекста
-                        context_breakdown = f"System:{len(system_prompt)} | Knowledge:{len(knowledge_context)} | Zep:{len(zep_context or '') + len(zep_history or '')} | User:{len(user_message)}"
-                        debug_info += f"📏 Total Context: {total_context_length:,} chars ({context_breakdown})\n"
+                        debug_info += f"🧠 Zep: {'✅' if has_zep else '❌'}\n"
 
                         bot_response += debug_info
+
+                    # Логируем Message ID для поиска в логах
+                    logger.info(f"🔗 Message ID: #{message_id} | Session: {session_id} | User: {user_name or 'Unknown'}")
 
                 except Exception as llm_error:
                     logger.error(f"❌ Ошибка LLM: {type(llm_error).__name__}: {llm_error}")
