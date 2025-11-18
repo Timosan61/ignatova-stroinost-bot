@@ -234,6 +234,96 @@ async def reload_instruction_endpoint():
             "message": str(e)
         }
 
+@app.post("/api/admin/migrate-glossary")
+async def migrate_glossary():
+    """Миграция glossary терминов в Supabase
+
+    Использование: curl -X POST https://...railway.app/api/admin/migrate-glossary
+    """
+    import time
+    from pathlib import Path
+    from supabase import create_client
+    from openai import OpenAI
+    from scripts.parse_knowledge_base import KnowledgeBaseParser
+
+    try:
+        # Initialize clients
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        openai_key = os.getenv("OPENAI_API_KEY")
+
+        if not all([supabase_url, supabase_key, openai_key]):
+            return {"status": "error", "message": "Missing required environment variables"}
+
+        supabase = create_client(supabase_url, supabase_key)
+        openai_client = OpenAI(api_key=openai_key)
+
+        # Parse glossary
+        kb_dir = Path("KNOWLEDGE_BASE")
+        parser = KnowledgeBaseParser(kb_dir)
+        glossary_file = kb_dir / "KNOWLEDGE_BASE_FULL.md"
+
+        glossary_terms = parser.parse_glossary(glossary_file)
+        logger.info(f"Found {len(glossary_terms)} glossary terms")
+
+        # Delete existing glossary entries
+        try:
+            supabase.table("course_knowledge").delete().eq("entity_type", "glossary").execute()
+            logger.info("Deleted existing glossary entries")
+        except Exception as e:
+            logger.warning(f"Could not delete existing entries: {e}")
+
+        # Upload glossary terms
+        success_count = 0
+        errors = []
+
+        for idx, term in enumerate(glossary_terms):
+            try:
+                # Generate embedding
+                content = f"{term.term}: {term.definition}"
+                response = openai_client.embeddings.create(
+                    input=content,
+                    model="text-embedding-3-small"
+                )
+                embedding = response.data[0].embedding
+
+                # Prepare row
+                row = {
+                    "id": f"glossary_{idx}",
+                    "entity_type": "glossary",
+                    "title": term.term,
+                    "content": content,
+                    "metadata": {
+                        "lesson_number": term.lesson_number,
+                        "keywords": term.keywords
+                    },
+                    "embedding": embedding,
+                    "created_at": datetime.now().isoformat()
+                }
+
+                # Upsert to Supabase
+                supabase.table("course_knowledge").upsert(row).execute()
+                success_count += 1
+
+                # Rate limit
+                time.sleep(0.05)
+
+            except Exception as e:
+                errors.append(f"{term.term}: {str(e)}")
+                logger.error(f"Failed to upload term '{term.term}': {e}")
+
+        return {
+            "status": "success",
+            "total_terms": len(glossary_terms),
+            "uploaded": success_count,
+            "failed": len(errors),
+            "errors": errors[:10] if errors else []
+        }
+
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")
+        return {"status": "error", "message": str(e)}
+
 @app.get("/api/admin/embedding/stats")
 async def get_embedding_stats():
     """Статистика производительности embeddings
