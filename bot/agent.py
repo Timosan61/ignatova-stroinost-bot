@@ -589,9 +589,12 @@ class TextilProAgent:
                     # Вычисляем полную длину промпта
                     full_prompt_len = len(system_prompt) + len(user_message) + len(knowledge_context or "") + len(str(zep_context or "")) + len(str(zep_history or ""))
 
+                    # Извлекаем user_id из session_id (формат: user_229838448)
+                    extracted_user_id = session_id.replace("user_", "") if session_id and session_id.startswith("user_") else session_id
+
                     await log_message(
                         message_id=message_id,
-                        user_id=str(user_id) if user_id else None,
+                        user_id=extracted_user_id,
                         user_name=user_name,
                         session_id=session_id,
                         query=user_message,
