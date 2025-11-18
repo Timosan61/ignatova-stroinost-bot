@@ -35,6 +35,41 @@
 - Entities: **3,234** (FAQ: 25, Lessons: 127, Corrections: 275, Questions: 2,635, Brainwrites: 172)
 - Embedding model: `sentence-transformers/all-MiniLM-L6-v2` (384D vectors)
 
+**Supabase:**
+- Project ID: `qqppsflwztnxcegcbwqd`
+- URL: `https://qqppsflwztnxcegcbwqd.supabase.co`
+- Table: `course_knowledge`
+- Entities: **3,234** (FAQ: 25, Lessons: 127, Corrections: 275, Questions: 2,635, Brainwrites: 172)
+- Embedding model: `text-embedding-3-small` (1536D vectors)
+
+---
+
+## 🔧 MCP Supabase (РЕКОМЕНДУЕТСЯ)
+
+**Используй MCP Supabase для работы с базой данных:**
+
+```bash
+# Проверить таблицы
+mcp__supabase__list_tables(project_id="qqppsflwztnxcegcbwqd")
+
+# Статистика по entity_type
+mcp__supabase__execute_sql(
+    project_id="qqppsflwztnxcegcbwqd",
+    query="SELECT entity_type, COUNT(*) FROM course_knowledge GROUP BY entity_type"
+)
+
+# Поиск данных
+mcp__supabase__execute_sql(
+    project_id="qqppsflwztnxcegcbwqd",
+    query="SELECT * FROM course_knowledge WHERE content ILIKE '%термин%' LIMIT 5"
+)
+```
+
+**Преимущества MCP Supabase:**
+- Прямой доступ к базе без локальных credentials
+- Быстрая диагностика данных
+- Миграции через SQL
+
 ---
 
 ## 🚀 ПОЛНАЯ МИГРАЦИЯ QDRANT (16 ноября 2025)
