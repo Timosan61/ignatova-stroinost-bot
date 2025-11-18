@@ -455,7 +455,9 @@ class TextilProAgent:
                     from bot.services.knowledge_search import get_knowledge_search_service
                     knowledge_service = get_knowledge_search_service()
 
-                    if knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
+                    if knowledge_service.use_supabase and knowledge_service.supabase_enabled:
+                        debug_info += "🟣 **Search System:** SUPABASE Vector DB\n"
+                    elif knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
                         debug_info += "🔵 **Search System:** QDRANT Vector DB\n"
                     elif knowledge_service.graphiti_enabled:
                         debug_info += "🟢 **Search System:** GRAPHITI Knowledge Graph\n"
@@ -511,7 +513,9 @@ class TextilProAgent:
                         from bot.services.knowledge_search import get_knowledge_search_service
                         knowledge_service = get_knowledge_search_service()
 
-                        if knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
+                        if knowledge_service.use_supabase and knowledge_service.supabase_enabled:
+                            debug_info += "🟣 **Search System:** SUPABASE Vector DB\n"
+                        elif knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
                             debug_info += "🔵 **Search System:** QDRANT Vector DB\n"
                         elif knowledge_service.graphiti_enabled:
                             debug_info += "🟢 **Search System:** GRAPHITI Knowledge Graph\n"
@@ -531,7 +535,8 @@ class TextilProAgent:
                         # Разбивка по типам entities (metadata)
                         entity_types = {}
                         for result in search_results:
-                            entity_type = result.metadata.get('entity_type', 'unknown')
+                            # Поддержка разных источников: entity_type может быть в metadata или напрямую в result
+                            entity_type = result.metadata.get('entity_type') or getattr(result, 'entity_type', 'unknown')
                             entity_types[entity_type] = entity_types.get(entity_type, 0) + 1
 
                         if entity_types:

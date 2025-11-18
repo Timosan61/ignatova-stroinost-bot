@@ -97,9 +97,10 @@ class SupabaseService:
             }
             logger.info(f"✅ Supabase REST API configured: {SUPABASE_URL}")
 
-            # Инициализация OpenAI client (для embeddings)
-            self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
-            logger.info(f"✅ OpenAI client initialized: {self.embedding_model}")
+            # Инициализация OpenAI client ОТЛОЖЕНА (lazy initialization)
+            # Клиент будет создан при первом использовании, чтобы использовать актуальный API key
+            self.openai_client = None
+            logger.info(f"✅ OpenAI client will be initialized on first use: {self.embedding_model}")
 
             # Проверка подключения к таблице
             try:
@@ -134,8 +135,15 @@ class SupabaseService:
         Raises:
             Exception: Если генерация embedding не удалась
         """
+        # Lazy initialization: создать OpenAI client при первом использовании
+        # Это гарантирует что мы используем актуальный OPENAI_API_KEY из environment
         if not self.openai_client:
-            raise RuntimeError("OpenAI client not initialized")
+            import os
+            api_key = os.getenv('OPENAI_API_KEY')
+            if not api_key:
+                raise RuntimeError("OPENAI_API_KEY not found in environment")
+            self.openai_client = OpenAI(api_key=api_key)
+            logger.info(f"✅ OpenAI client initialized (lazy): API key ending in ...{api_key[-4:]}")
 
         try:
             response = self.openai_client.embeddings.create(
