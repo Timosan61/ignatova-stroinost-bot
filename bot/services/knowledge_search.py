@@ -662,7 +662,7 @@ class KnowledgeSearchService:
             Formatted context string
         """
         if not results:
-            return "Релевантная информация не найдена в базе знаний."
+            return "Контекст из базы знаний пуст."
 
         context_parts = ["Найденная информация из базы знаний:\n"]
         current_length = len(context_parts[0])
