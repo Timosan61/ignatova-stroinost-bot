@@ -197,6 +197,33 @@ async def health_check():
         }
     }
 
+@app.post("/api/admin/reload-instruction")
+async def reload_instruction_endpoint():
+    """Перезагрузка системной инструкции без рестарта сервиса
+
+    Использование: curl -X POST http://localhost:8000/api/admin/reload-instruction
+    """
+    if not AI_ENABLED or not agent:
+        return {
+            "status": "error",
+            "message": "AI Agent не инициализирован"
+        }
+
+    try:
+        agent.reload_instruction()
+        return {
+            "status": "success",
+            "message": "Инструкция успешно перезагружена",
+            "timestamp": datetime.now().isoformat(),
+            "last_updated": agent.instruction.get("last_updated", "unknown")
+        }
+    except Exception as e:
+        logger.error(f"❌ Ошибка перезагрузки инструкции: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 @app.get("/debug/env")
 async def debug_env():
     """DEBUG: Проверка переменных окружения"""
