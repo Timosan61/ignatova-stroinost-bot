@@ -7,7 +7,9 @@
 import os
 import sys
 import time
+import json
 import logging
+import requests
 from pathlib import Path
 from datetime import datetime
 from dotenv import load_dotenv
@@ -16,7 +18,6 @@ from dotenv import load_dotenv
 root_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(root_dir))
 
-from supabase import create_client
 from openai import OpenAI
 from scripts.parse_knowledge_base import KnowledgeBaseParser
 
@@ -29,15 +30,23 @@ logger = logging.getLogger(__name__)
 
 def main():
     # Initialize clients
-    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_url = os.getenv("SUPABASE_URL", "https://qqppsflwztnxcegcbwqd.supabase.co")
     supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
     openai_key = os.getenv("OPENAI_API_KEY")
 
-    if not all([supabase_url, supabase_key, openai_key]):
-        logger.error("Missing required environment variables")
+    if not openai_key:
+        logger.error("Missing OPENAI_API_KEY")
         return
 
-    supabase = create_client(supabase_url, supabase_key)
+    # REST API setup
+    api_url = f"{supabase_url}/rest/v1"
+    headers = {
+        "apikey": supabase_key,
+        "Authorization": f"Bearer {supabase_key}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+    }
+
     openai_client = OpenAI(api_key=openai_key)
 
     # Parse glossary
@@ -49,11 +58,17 @@ def main():
     glossary_terms = parser.parse_glossary(glossary_file)
     logger.info(f"✅ Found {len(glossary_terms)} terms")
 
-    # Delete existing glossary entries
+    # Delete existing glossary entries via REST API
     logger.info("🗑️ Deleting existing glossary entries...")
     try:
-        supabase.table("course_knowledge").delete().eq("entity_type", "glossary").execute()
-        logger.info("✅ Existing glossary entries deleted")
+        response = requests.delete(
+            f"{api_url}/course_knowledge?entity_type=eq.glossary",
+            headers=headers
+        )
+        if response.status_code in [200, 204]:
+            logger.info("✅ Existing glossary entries deleted")
+        else:
+            logger.warning(f"⚠️ Delete response: {response.status_code} - {response.text}")
     except Exception as e:
         logger.warning(f"⚠️ Could not delete existing entries: {e}")
 
@@ -65,11 +80,11 @@ def main():
         try:
             # Generate embedding
             content = f"{term.term}: {term.definition}"
-            response = openai_client.embeddings.create(
+            embed_response = openai_client.embeddings.create(
                 input=content,
                 model="text-embedding-3-small"
             )
-            embedding = response.data[0].embedding
+            embedding = embed_response.data[0].embedding
 
             # Prepare row
             row = {
@@ -85,9 +100,18 @@ def main():
                 "created_at": datetime.utcnow().isoformat()
             }
 
-            # Upsert to Supabase
-            supabase.table("course_knowledge").upsert(row).execute()
-            success_count += 1
+            # Upsert to Supabase via REST API
+            upsert_headers = {**headers, "Prefer": "resolution=merge-duplicates"}
+            response = requests.post(
+                f"{api_url}/course_knowledge",
+                headers=upsert_headers,
+                json=row
+            )
+
+            if response.status_code in [200, 201, 204]:
+                success_count += 1
+            else:
+                logger.error(f"❌ Failed to upload '{term.term}': {response.status_code} - {response.text[:200]}")
 
             if (idx + 1) % 10 == 0:
                 logger.info(f"  Progress: {idx + 1}/{len(glossary_terms)}")
