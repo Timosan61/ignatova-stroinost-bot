@@ -1,6 +1,7 @@
 import json
 import asyncio
 import logging
+import re
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -155,7 +156,36 @@ class TextilProAgent:
         else:
             logger.info("📝 Инструкции перезагружены (без изменений)")
             print("📝 Инструкции перезагружены (без изменений)")
-    
+
+    def _remove_emojis(self, text: str) -> str:
+        """
+        Удаляет эмодзи из текста для улучшения векторного поиска
+
+        Проблема: Эмодзи могут искажать semantic similarity в embeddings,
+        особенно в старых моделях (all-MiniLM-L6-v2).
+
+        Args:
+            text: Исходный текст с эмодзи
+
+        Returns:
+            str: Текст без эмодзи
+        """
+        # Паттерн для эмодзи (Unicode ranges)
+        emoji_pattern = re.compile(
+            "["
+            "\U0001F600-\U0001F64F"  # emoticons
+            "\U0001F300-\U0001F5FF"  # symbols & pictographs
+            "\U0001F680-\U0001F6FF"  # transport & map symbols
+            "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+            "\U00002702-\U000027B0"  # dingbats
+            "\U000024C2-\U0001F251"  # enclosed characters
+            "\U0001F900-\U0001F9FF"  # supplemental symbols
+            "\U0001FA00-\U0001FA6F"  # extended symbols
+            "]+",
+            flags=re.UNICODE
+        )
+        return emoji_pattern.sub('', text).strip()
+
     async def search_knowledge_base(self, query: str, limit: int = 5) -> tuple:
         """
         Поиск релевантной информации в базе знаний
@@ -169,6 +199,16 @@ class TextilProAgent:
         Returns:
             tuple: (context: str, sources: List[str], search_results: List[SearchResult])
         """
+
+        # Убираем эмодзи из запроса для улучшения векторного поиска
+        original_query = query
+        cleaned_query = self._remove_emojis(query)
+
+        if cleaned_query != original_query:
+            logger.info(f"🔧 Убрали эмодзи из запроса для поиска")
+            logger.info(f"   Исходный: '{original_query}'")
+            logger.info(f"   Очищенный: '{cleaned_query}'")
+            query = cleaned_query if cleaned_query else original_query  # Fallback если все эмодзи
 
         # ====================
         # STRATEGY 1: Knowledge Search (Qdrant/Graphiti)
@@ -190,12 +230,19 @@ class TextilProAgent:
                 strategy = knowledge_service.route_query(query)
                 logger.info(f"🎯 Выбрана стратегия: {strategy}")
 
+                # Динамический threshold для коротких сообщений
+                # Короткие запросы (< 20 символов) обычно имеют lower similarity scores
+                query_length = len(cleaned_query.strip())
+                dynamic_threshold = 0.10 if query_length < 20 else 0.15
+
+                logger.info(f"🎚️ Динамический threshold: {dynamic_threshold} (длина запроса: {query_length} символов)")
+
                 # Выполняем поиск
                 search_results = await knowledge_service.search(
                     query=query,
                     strategy=strategy,
                     limit=limit,
-                    min_relevance=0.15  # Снижен threshold для числовых запросов (урок 27, день 5)
+                    min_relevance=dynamic_threshold
                 )
 
                 if search_results:
@@ -423,6 +470,13 @@ class TextilProAgent:
     async def generate_response(self, user_message: str, session_id: str, user_name: str = None) -> str:
         try:
             system_prompt = self.instruction.get("system_instruction", "")
+
+            # Диагностика входного сообщения
+            has_emojis = any(ord(c) > 127 and ord(c) not in range(0x0400, 0x0500) for c in user_message)  # Исключаем кириллицу
+            logger.info(f"📨 Входное сообщение:")
+            logger.info(f"   Текст: '{user_message}'")
+            logger.info(f"   Длина: {len(user_message)} символов")
+            logger.info(f"   Содержит эмодзи: {'✅ Да' if has_emojis else '❌ Нет'}")
 
             # Ищем релевантную информацию в базе знаний
             logger.info(f"🔎 Вызов search_knowledge_base() для запроса: '{user_message[:50]}...'")
