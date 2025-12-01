@@ -531,37 +531,36 @@ class TextilProAgent:
                     logger.warning(f"   Content preview: '{knowledge_context[:200]}...'")
                 else:
                     logger.info("📭 Контекст из базы знаний пуст")
-                # Если базы знаний нет - возвращаем fallback сообщение с DEBUG INFO
-                user_name_display = user_name if user_name else "Дорогая"
 
-                # Формируем DEBUG INFO для диагностики (если включено)
-                from .config import DEBUG_INFO_ENABLED
-                debug_info = ""
+                # Проверяем тип запроса для определения fallback стратегии
+                logger.info("🔍 Анализ типа запроса для выбора fallback стратегии...")
 
-                if DEBUG_INFO_ENABLED:
-                    debug_info = "\n\n---\n🔍 **DEBUG INFO:**\n"
-                    debug_info += f"⚠️ **Status:** NO RESULTS FOUND\n"
-                    debug_info += f"📚 Knowledge Base: ❌ Пустой результат поиска\n"
-                    debug_info += f"📊 **Results:** 0 найдено (возможно threshold=0.15 слишком высокий или exception)\n"
+                # Определяем признаки технических/организационных вопросов
+                user_message_lower = user_message.lower()
+                is_technical_question = any(word in user_message_lower for word in [
+                    'не могу зайти', 'не работает', 'ошибка на сайте', 'доступ к платформе',
+                    'не открывается', 'не загружается', 'технические проблемы'
+                ])
+                is_payment_question = any(word in user_message_lower for word in [
+                    'оплата', 'оплатить', 'стоимость', 'цена', 'тариф', 'деньги', 'возврат'
+                ])
 
-                    # Информация о системе поиска
-                    if KNOWLEDGE_SEARCH_AVAILABLE:
-                        from bot.services.knowledge_search import get_knowledge_search_service
-                        knowledge_service = get_knowledge_search_service()
+                # ТОЛЬКО для технических/платёжных вопросов → отправляем в поддержку
+                if is_technical_question or is_payment_question:
+                    logger.info("📨 Технический/платёжный вопрос → редирект в поддержку")
+                    user_name_display = user_name if user_name else "Дорогая"
 
-                        if knowledge_service.use_supabase and knowledge_service.supabase_enabled:
-                            debug_info += "🟣 **Search System:** SUPABASE Vector DB\n"
-                        elif knowledge_service.use_qdrant and knowledge_service.qdrant_enabled:
-                            debug_info += "🔵 **Search System:** QDRANT Vector DB\n"
-                        elif knowledge_service.graphiti_enabled:
-                            debug_info += "🟢 **Search System:** GRAPHITI Knowledge Graph\n"
-                        else:
-                            debug_info += "⚪ **Search System:** FALLBACK (local files)\n"
+                    from .config import DEBUG_INFO_ENABLED
+                    debug_info = ""
+                    if DEBUG_INFO_ENABLED:
+                        debug_info = "\n\n---\n🔍 **DEBUG INFO:** Технический вопрос → support redirect\n"
 
-                    # Подсказка для пользователя
-                    debug_info += f"💡 **Hint:** Попробуйте переформулировать вопрос или проверьте логи Railway\n"
+                    return f"{user_name_display}, по этому вопросу рекомендую написать в поддержку курса или обратиться к @support_ignatova 🌸{debug_info}"
 
-                return f"{user_name_display}, по этому вопросу рекомендую написать в поддержку курса или обратиться к @support_ignatova 🌸{debug_info}"
+                # Для всех остальных запросов (методология, практики, мозгоритмы) →
+                # используем системную инструкцию + общие знания AI
+                logger.info("🤖 Методологический запрос → используем AI без базы знаний")
+                logger.info("   Система генерирует ответ куратора на основе системной инструкции")
 
             # Добавляем контекст и историю в системный промпт
             if zep_context:
