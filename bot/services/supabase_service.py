@@ -295,7 +295,11 @@ class SupabaseService:
 
         try:
             # Генерируем embedding для запроса
+            logger.info(f"🔍 Supabase: Генерируем embedding для query: '{query[:80]}...'")
+            logger.info(f"   Threshold: {score_threshold}, Limit: {limit}, Entity filter: {entity_type or 'all'}")
+
             query_embedding = self._generate_embedding(query)
+            logger.info(f"✅ Embedding сгенерирован: {len(query_embedding)} dimensions")
 
             # Вызываем RPC function через REST API
             rpc_url = f"{SUPABASE_URL}/rest/v1/rpc/match_documents"
@@ -312,6 +316,8 @@ class SupabaseService:
             else:
                 rpc_params["filter_entity_type"] = None
 
+            logger.info(f"📡 Вызываем RPC match_documents...")
+
             # POST request для RPC
             response = requests.post(
                 rpc_url,
@@ -323,22 +329,46 @@ class SupabaseService:
             # Парсим результаты
             data = response.json()
 
+            logger.info(f"📊 RPC вернул {len(data)} результатов")
+
             # Форматируем результаты
             results = []
-            for row in data:
+            for i, row in enumerate(data):
+                similarity = row.get("similarity", 0.0)
+                entity_type_result = row.get("entity_type", "unknown")
+
+                # Логируем первые 3 результата для диагностики
+                if i < 3:
+                    logger.info(
+                        f"   Result {i+1}: [{entity_type_result}] "
+                        f"similarity={similarity:.3f}, "
+                        f"title='{row.get('title', '')[:50]}...'"
+                    )
+
                 results.append({
                     "id": str(row.get("id")),
-                    "score": row.get("similarity", 0.0),
-                    "entity_type": row.get("entity_type", "unknown"),
+                    "score": similarity,
+                    "entity_type": entity_type_result,
                     "title": row.get("title", ""),
                     "content": row.get("content", ""),
                     "metadata": row.get("metadata", {})
                 })
 
-            logger.info(
-                f"🔍 Supabase semantic search: query='{query[:50]}...', "
-                f"found={len(results)}, entity_type={entity_type or 'all'}"
-            )
+            # Итоговая статистика
+            if results:
+                avg_score = sum(r["score"] for r in results) / len(results)
+                min_score = min(r["score"] for r in results)
+                max_score = max(r["score"] for r in results)
+                logger.info(
+                    f"✅ Supabase search complete: found={len(results)}, "
+                    f"scores: min={min_score:.3f}, avg={avg_score:.3f}, max={max_score:.3f}"
+                )
+            else:
+                logger.warning(
+                    f"⚠️ Supabase search: 0 результатов! "
+                    f"Threshold {score_threshold} слишком высокий?"
+                )
+
             return results
 
         except Exception as e:

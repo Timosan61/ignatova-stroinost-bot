@@ -232,10 +232,11 @@ class TextilProAgent:
 
                 # Динамический threshold для коротких сообщений
                 # Короткие запросы (< 20 символов) обычно имеют lower similarity scores
+                # ВРЕМЕННО ПОНИЖЕН для диагностики Supabase search (0.05/0.08 вместо 0.10/0.15)
                 query_length = len(cleaned_query.strip())
-                dynamic_threshold = 0.10 if query_length < 20 else 0.15
+                dynamic_threshold = 0.05 if query_length < 20 else 0.08
 
-                logger.info(f"🎚️ Динамический threshold: {dynamic_threshold} (длина запроса: {query_length} символов)")
+                logger.info(f"🎚️ Динамический threshold: {dynamic_threshold} (длина запроса: {query_length} символов, ПОНИЖЕН для диагностики)")
 
                 # Выполняем поиск
                 search_results = await knowledge_service.search(
