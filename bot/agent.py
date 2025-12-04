@@ -395,8 +395,8 @@ class TextilProAgent:
         - Автоматический fallback на Anthropic при timeout OpenAI
         """
 
-        # Timeout для Vercel serverless (8s, оставляя 2s буфер для 10s limit)
-        AI_REQUEST_TIMEOUT = 15.0  # Увеличено с 8s (timeout для больших контекстов)
+        # Timeout для длинных контекстов (мозгоритмы ~11k символов)
+        AI_REQUEST_TIMEOUT = 30.0  # Увеличено с 15s для gpt-5.1 с длинными запросами
 
         # Сначала пробуем OpenAI
         if self.openai_client:
