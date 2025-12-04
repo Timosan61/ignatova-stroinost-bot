@@ -388,11 +388,9 @@ class TextilProAgent:
     
     async def call_llm(self, messages: list, max_completion_tokens: int = 1000, temperature: float = 0.5) -> str:
         """
-        Роутер LLM запросов с fallback между OpenAI и Anthropic
+        LLM запрос через OpenAI (единственный провайдер)
 
-        ⚠️ VERCEL SERVERLESS OPTIMIZATION:
-        - Timeout 8s для AI запросов (Vercel Hobby limit: 10s, оставляем 2s буфер)
-        - Автоматический fallback на Anthropic при timeout OpenAI
+        Timeout: 30 секунд для обработки длинных контекстов (мозгоритмы)
         """
 
         # Timeout для длинных контекстов (мозгоритмы ~11k символов)
@@ -428,56 +426,16 @@ class TextilProAgent:
                 return result
 
             except asyncio.TimeoutError:
-                logger.warning(f"⏱️ OpenAI timeout после {AI_REQUEST_TIMEOUT}s - переключаемся на Anthropic")
-                print(f"⏱️ OpenAI timeout после {AI_REQUEST_TIMEOUT}s")
+                logger.error(f"⏱️ OpenAI timeout после {AI_REQUEST_TIMEOUT}s")
+                raise Exception(f"OpenAI timeout: запрос превысил {AI_REQUEST_TIMEOUT}s. Попробуйте упростить запрос или обратитесь позже.")
 
             except Exception as e:
                 logger.error(f"❌ Ошибка OpenAI: {e}")
-                print(f"❌ OpenAI недоступен: {e}")
+                raise Exception(f"OpenAI error: {e}")
 
-        # Fallback на Anthropic
-        if self.anthropic_client:
-            try:
-                logger.info(f"🤖 Fallback на Anthropic Claude (timeout: {AI_REQUEST_TIMEOUT}s)")
-
-                # Конвертируем сообщения для Anthropic API
-                system_message = ""
-                user_messages = []
-
-                for msg in messages:
-                    if msg["role"] == "system":
-                        system_message = msg["content"]
-                    else:
-                        user_messages.append(msg)
-
-                # Обёртываем в asyncio.wait_for для timeout
-                response = await asyncio.wait_for(
-                    self.anthropic_client.messages.create(
-                        model=ANTHROPIC_MODEL,
-                        max_tokens=max_completion_tokens,  # Anthropic использует max_tokens, но значение из max_completion_tokens
-                        temperature=temperature,
-                        system=system_message,
-                        messages=user_messages
-                    ),
-                    timeout=AI_REQUEST_TIMEOUT
-                )
-
-                result = response.content[0].text
-                self.current_model = ANTHROPIC_MODEL  # Track which model was used
-                logger.info("✅ Anthropic ответ получен")
-                return result
-
-            except asyncio.TimeoutError:
-                logger.error(f"⏱️ Anthropic timeout после {AI_REQUEST_TIMEOUT}s")
-                raise Exception(f"AI запрос превысил {AI_REQUEST_TIMEOUT}s timeout. Попробуйте упростить запрос или обратитесь позже.")
-
-            except Exception as e:
-                logger.error(f"❌ Ошибка Anthropic: {e}")
-                print(f"❌ Anthropic недоступен: {e}")
-
-        # Если оба LLM недоступны
-        logger.error("❌ Все LLM недоступны")
-        raise Exception("Все LLM провайдеры недоступны")
+        # Если OpenAI клиент не инициализирован
+        logger.error("❌ OpenAI клиент недоступен")
+        raise Exception("OpenAI клиент не инициализирован")
     
     async def generate_response(self, user_message: str, session_id: str, user_name: str = None) -> str:
         try:
