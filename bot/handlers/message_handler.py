@@ -4,6 +4,7 @@
 
 import logging
 from typing import Dict, Any, Optional
+from collections import deque
 import telebot
 from datetime import datetime
 
@@ -14,10 +15,12 @@ logger = logging.getLogger(__name__)
 
 class MessageHandler:
     """Класс для обработки различных типов сообщений"""
-    
+
     def __init__(self, bot: telebot.TeleBot, agent=None):
         self.bot = bot
         self.agent = agent
+        # In-memory cache для защиты от дублирования сообщений (последние 100)
+        self.processed_messages = deque(maxlen=100)
         
     async def handle_regular_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
         """Обработка обычных сообщений"""
@@ -25,10 +28,21 @@ class MessageHandler:
         chat_id = message_data.get("chat", {}).get("id")
         text = message_data.get("text", "")
         user_name = message_data.get("from", {}).get("first_name", "Пользователь")
-        
+        message_id = message_data.get("message_id")
+
         if not text:
             return {"ok": True, "action": "ignored_empty_message"}
-            
+
+        # === ЗАЩИТА ОТ ДУБЛИРОВАНИЯ: Проверяем message_id ===
+        if message_id and message_id in self.processed_messages:
+            logger.warning(f"⚠️ DUPLICATE: message_id {message_id} already processed, skipping...")
+            return {"ok": True, "action": "duplicate_skipped", "message_id": message_id}
+
+        # Добавляем message_id в cache (если есть)
+        if message_id:
+            self.processed_messages.append(message_id)
+            logger.debug(f"✅ Message ID {message_id} added to processed cache (size: {len(self.processed_messages)})")
+
         logger.info(f"📨 Обычное сообщение от {user_name} (ID: {user_id}): {text[:50]}...")
         
         try:

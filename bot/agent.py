@@ -585,7 +585,7 @@ class TextilProAgent:
                     # GPT сам добавляет источники согласно инструкции в system_prompt
                     # Автоматическое добавление убрано чтобы избежать дублирования
 
-                    logger.info(f"✅ Ответ сгенерирован успешно (длина: {len(bot_response)} символов)")
+                    logger.info(f"✅ CHECKPOINT: LLM response generated successfully (length: {len(bot_response)} chars)")
 
                     # SUMMARY лог генерации
                     logger.info(f"""
@@ -639,37 +639,45 @@ class TextilProAgent:
                     # Логируем Message ID для поиска в логах
                     logger.info(f"🔗 Message ID: #{message_id} | Session: {session_id} | User: {user_name or 'Unknown'}")
 
-                    # Сохраняем детальный лог в MySQL для анализа
-                    entity_types_for_log = {}
-                    avg_score_for_log = None
-                    if search_results:
-                        avg_score_for_log = sum(r.relevance_score for r in search_results) / len(search_results)
-                        for result in search_results:
-                            entity_type = result.metadata.get('entity_type') or getattr(result, 'entity_type', 'unknown')
-                            entity_types_for_log[entity_type] = entity_types_for_log.get(entity_type, 0) + 1
+                    # === НЕКРИТИЧНАЯ ОПЕРАЦИЯ: Сохранение в MySQL ===
+                    # Ошибки НЕ должны влиять на возврат ответа пользователю
+                    try:
+                        # Сохраняем детальный лог в MySQL для анализа
+                        entity_types_for_log = {}
+                        avg_score_for_log = None
+                        if search_results:
+                            avg_score_for_log = sum(r.relevance_score for r in search_results) / len(search_results)
+                            for result in search_results:
+                                entity_type = result.metadata.get('entity_type') or getattr(result, 'entity_type', 'unknown')
+                                entity_types_for_log[entity_type] = entity_types_for_log.get(entity_type, 0) + 1
 
-                    # Вычисляем полную длину промпта
-                    full_prompt_len = len(system_prompt) + len(user_message) + len(knowledge_context or "") + len(str(zep_context or "")) + len(str(zep_history or ""))
+                        # Вычисляем полную длину промпта
+                        full_prompt_len = len(system_prompt) + len(user_message) + len(knowledge_context or "") + len(str(zep_context or "")) + len(str(zep_history or ""))
 
-                    # Извлекаем user_id из session_id (формат: user_229838448)
-                    extracted_user_id = session_id.replace("user_", "") if session_id and session_id.startswith("user_") else session_id
+                        # Извлекаем user_id из session_id (формат: user_229838448)
+                        extracted_user_id = session_id.replace("user_", "") if session_id and session_id.startswith("user_") else session_id
 
-                    await log_message(
-                        message_id=message_id,
-                        user_id=extracted_user_id,
-                        user_name=user_name,
-                        session_id=session_id,
-                        query=user_message,
-                        search_results_count=len(search_results) if search_results else 0,
-                        avg_relevance_score=avg_score_for_log,
-                        entity_types=entity_types_for_log if entity_types_for_log else None,
-                        sources=list(dict.fromkeys(sources_used)) if sources_used else None,
-                        knowledge_context=knowledge_context,
-                        zep_context=str(zep_context or "") + str(zep_history or ""),
-                        full_prompt_length=full_prompt_len,
-                        model_used=getattr(self, 'current_model', 'unknown'),
-                        response_text=bot_response
-                    )
+                        await log_message(
+                            message_id=message_id,
+                            user_id=extracted_user_id,
+                            user_name=user_name,
+                            session_id=session_id,
+                            query=user_message,
+                            search_results_count=len(search_results) if search_results else 0,
+                            avg_relevance_score=avg_score_for_log,
+                            entity_types=entity_types_for_log if entity_types_for_log else None,
+                            sources=list(dict.fromkeys(sources_used)) if sources_used else None,
+                            knowledge_context=knowledge_context,
+                            zep_context=str(zep_context or "") + str(zep_history or ""),
+                            full_prompt_length=full_prompt_len,
+                            model_used=getattr(self, 'current_model', 'unknown'),
+                            response_text=bot_response
+                        )
+                        logger.info(f"✅ CHECKPOINT: MySQL log saved")
+                    except Exception as mysql_error:
+                        # MySQL ошибки НЕ критичны - ответ уже сгенерирован
+                        logger.warning(f"⚠️ MySQL log failed (non-critical): {type(mysql_error).__name__}: {mysql_error}")
+                        # НЕ raise, НЕ return - продолжаем execution
 
                 except Exception as llm_error:
                     logger.error(f"❌ Ошибка LLM: {type(llm_error).__name__}: {llm_error}")
@@ -706,8 +714,15 @@ class TextilProAgent:
                 else:
                     bot_response = f"⚠️ AI сервис не настроен. Обратитесь к администратору для настройки OpenAI или Anthropic API.\n\nКристина, ignatova-stroinost"
 
-            # Сохраняем в Zep Memory (с fallback на локальное хранилище)
-            await self.add_to_zep_memory(session_id, user_message, bot_response, user_name)
+            # === НЕКРИТИЧНАЯ ОПЕРАЦИЯ: Сохранение в Zep Memory ===
+            # Ошибки НЕ должны влиять на возврат ответа пользователю
+            try:
+                await self.add_to_zep_memory(session_id, user_message, bot_response, user_name)
+                logger.info(f"✅ CHECKPOINT: Zep Memory saved")
+            except Exception as zep_error:
+                # Zep ошибки НЕ критичны - ответ уже сгенерирован
+                logger.warning(f"⚠️ Zep Memory failed (non-critical): {type(zep_error).__name__}: {zep_error}")
+                # НЕ raise, НЕ return - продолжаем execution
 
             # === СОХРАНЕНИЕ В GRAPHITI: Temporal Knowledge Graph диалогов ===
             # ВРЕМЕННО ОТКЛЮЧЕНО для отладки - TODO: исправить и включить обратно
@@ -739,16 +754,24 @@ class TextilProAgent:
             #     # Не критично - если Graphiti недоступен, бот продолжает работать
             #     logger.warning(f"⚠️ Graphiti недоступен, диалог не сохранён в knowledge graph: {graphiti_error}")
 
-            # === ВАЛИДАЦИЯ ОТВЕТА ПЕРЕД ОТПРАВКОЙ ===
-            validation_result = validate_response(bot_response, student_name=user_name)
+            # === НЕКРИТИЧНАЯ ОПЕРАЦИЯ: Валидация ответа перед отправкой ===
+            # Ошибки валидации НЕ должны блокировать отправку ответа
+            try:
+                validation_result = validate_response(bot_response, student_name=user_name)
 
-            if not validation_result["valid"]:
-                logger.error(f"❌ ВАЛИДАЦИЯ НЕ ПРОШЛА: {validation_result['errors']}")
-                # Логируем проблемный ответ для анализа
-                logger.error(f"Проблемный ответ:\n{bot_response}")
+                if not validation_result["valid"]:
+                    logger.error(f"❌ ВАЛИДАЦИЯ НЕ ПРОШЛА: {validation_result['errors']}")
+                    # Логируем проблемный ответ для анализа
+                    logger.error(f"Проблемный ответ:\n{bot_response}")
 
-            if validation_result["warnings"]:
-                logger.warning(f"⚠️ Предупреждения валидации: {validation_result['warnings']}")
+                if validation_result["warnings"]:
+                    logger.warning(f"⚠️ Предупреждения валидации: {validation_result['warnings']}")
+
+                logger.info(f"✅ CHECKPOINT: Validation completed")
+            except Exception as validation_error:
+                # Validation ошибки НЕ критичны - ответ уже сгенерирован
+                logger.warning(f"⚠️ Validation failed (non-critical): {type(validation_error).__name__}: {validation_error}")
+                # НЕ raise, НЕ return - продолжаем execution
 
             return bot_response
 
