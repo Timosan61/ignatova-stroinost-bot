@@ -3,6 +3,7 @@
 """
 
 import logging
+import asyncio
 from typing import Dict, Any, Optional
 from collections import deque
 import telebot
@@ -21,30 +22,54 @@ class MessageHandler:
         self.agent = agent
         # In-memory cache для защиты от дублирования сообщений (последние 100)
         self.processed_messages = deque(maxlen=100)
-        
-    async def handle_regular_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Обработка обычных сообщений"""
+
+        # MESSAGE BUFFERING: Объединение последовательных сообщений
+        self.user_buffers = {}      # user_id -> list of message_data dicts
+        self.user_timers = {}       # user_id -> asyncio.Task
+        self.BUFFER_TIMEOUT = 3.0   # секунды ожидания между сообщениями
+
+    async def process_buffered_messages(self, user_id: int):
+        """
+        Обрабатывает накопленные сообщения пользователя после истечения таймера.
+        Объединяет все тексты в один и отправляет единый запрос к AI.
+        """
+        if user_id not in self.user_buffers or not self.user_buffers[user_id]:
+            logger.warning(f"⚠️ Buffer empty for user {user_id}, nothing to process")
+            return
+
+        buffered_messages = self.user_buffers[user_id]
+        logger.info(f"🔄 Processing {len(buffered_messages)} buffered messages for user {user_id}")
+
+        # Объединяем все тексты через двойной перевод строки
+        combined_text = "\n\n".join(msg.get("text", "") for msg in buffered_messages)
+
+        # Берем данные из первого сообщения для метаинформации
+        first_message = buffered_messages[0]
+        combined_message_data = first_message.copy()
+        combined_message_data["text"] = combined_text
+
+        # Очищаем буфер и таймер
+        del self.user_buffers[user_id]
+        if user_id in self.user_timers:
+            del self.user_timers[user_id]
+
+        logger.info(f"📝 Combined message length: {len(combined_text)} chars")
+
+        # Обрабатываем объединенное сообщение
+        await self._process_single_message(combined_message_data)
+
+    async def _process_single_message(self, message_data: Dict[str, Any]):
+        """
+        Внутренняя функция для обработки одного сообщения (или объединенного).
+        Содержит всю логику AI генерации, сохранения в БД и отправки ответа.
+        """
         user_id = message_data.get("from", {}).get("id")
         chat_id = message_data.get("chat", {}).get("id")
         text = message_data.get("text", "")
         user_name = message_data.get("from", {}).get("first_name", "Пользователь")
-        message_id = message_data.get("message_id")
 
-        if not text:
-            return {"ok": True, "action": "ignored_empty_message"}
+        logger.info(f"🤖 Processing message from {user_name} (ID: {user_id}): {text[:100]}...")
 
-        # === ЗАЩИТА ОТ ДУБЛИРОВАНИЯ: Проверяем message_id ===
-        if message_id and message_id in self.processed_messages:
-            logger.warning(f"⚠️ DUPLICATE: message_id {message_id} already processed, skipping...")
-            return {"ok": True, "action": "duplicate_skipped", "message_id": message_id}
-
-        # Добавляем message_id в cache (если есть)
-        if message_id:
-            self.processed_messages.append(message_id)
-            logger.debug(f"✅ Message ID {message_id} added to processed cache (size: {len(self.processed_messages)})")
-
-        logger.info(f"📨 Обычное сообщение от {user_name} (ID: {user_id}): {text[:50]}...")
-        
         try:
             # === СОХРАНЕНИЕ В БД: Шаг 1 - Сохранить/обновить чат ===
             try:
@@ -100,7 +125,6 @@ class MessageHandler:
                     except Exception as db_error:
                         logger.warning(f"⚠️ Не удалось сохранить сообщение в БД: {db_error}")
 
-                return {"ok": True, "action": "message_processed"}
             else:
                 # Fallback если AI недоступен
                 fallback_response = self._get_fallback_response(text)
@@ -122,13 +146,71 @@ class MessageHandler:
                     except Exception as db_error:
                         logger.warning(f"⚠️ Не удалось сохранить fallback сообщение в БД: {db_error}")
 
-                return {"ok": True, "action": "fallback_response"}
-
         except Exception as e:
             logger.error(f"❌ Ошибка обработки сообщения от {user_name}: {e}")
             error_message = "Извините, произошла техническая ошибка. Попробуйте написать снова."
             self.bot.send_message(chat_id, error_message)
-            return {"ok": False, "error": str(e)}
+
+    async def handle_regular_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Обработка обычных сообщений"""
+        user_id = message_data.get("from", {}).get("id")
+        chat_id = message_data.get("chat", {}).get("id")
+        text = message_data.get("text", "")
+        user_name = message_data.get("from", {}).get("first_name", "Пользователь")
+        message_id = message_data.get("message_id")
+
+        if not text:
+            return {"ok": True, "action": "ignored_empty_message"}
+
+        # === ЗАЩИТА ОТ ДУБЛИРОВАНИЯ: Проверяем message_id ===
+        if message_id and message_id in self.processed_messages:
+            logger.warning(f"⚠️ DUPLICATE: message_id {message_id} already processed, skipping...")
+            return {"ok": True, "action": "duplicate_skipped", "message_id": message_id}
+
+        # Добавляем message_id в cache (если есть)
+        if message_id:
+            self.processed_messages.append(message_id)
+            logger.debug(f"✅ Message ID {message_id} added to processed cache (size: {len(self.processed_messages)})")
+
+        logger.info(f"📨 Сообщение от {user_name} (ID: {user_id}): {text[:50]}...")
+
+        # === MESSAGE BUFFERING: Добавляем в буфер вместо немедленной обработки ===
+
+        # Инициализируем буфер для пользователя если его нет
+        if user_id not in self.user_buffers:
+            self.user_buffers[user_id] = []
+
+        # Добавляем сообщение в буфер
+        self.user_buffers[user_id].append(message_data)
+        buffer_size = len(self.user_buffers[user_id])
+        logger.info(f"➕ Message added to buffer for user {user_id} (buffer size: {buffer_size})")
+
+        # Отменяем предыдущий таймер если он был запущен
+        if user_id in self.user_timers:
+            old_timer = self.user_timers[user_id]
+            if not old_timer.done():
+                old_timer.cancel()
+                logger.debug(f"⏱️ Cancelled previous timer for user {user_id}")
+
+        # Создаем новый таймер
+        async def timer_callback():
+            """Вызывается когда таймер истекает"""
+            try:
+                await asyncio.sleep(self.BUFFER_TIMEOUT)
+                logger.info(f"⏰ Timer expired for user {user_id}, processing buffered messages...")
+                await self.process_buffered_messages(user_id)
+            except asyncio.CancelledError:
+                logger.debug(f"⏱️ Timer cancelled for user {user_id}")
+            except Exception as e:
+                logger.error(f"❌ Error in timer callback for user {user_id}: {e}")
+
+        # Запускаем таймер
+        timer_task = asyncio.create_task(timer_callback())
+        self.user_timers[user_id] = timer_task
+        logger.debug(f"⏱️ Started {self.BUFFER_TIMEOUT}s timer for user {user_id}")
+
+        # Немедленно возвращаем OK - сообщение будет обработано после истечения таймера
+        return {"ok": True, "action": "buffered", "buffer_size": buffer_size}
     
     async def handle_voice_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
         """Обработка голосовых сообщений с детальной диагностикой ошибок"""
