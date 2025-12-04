@@ -70,6 +70,32 @@ class MessageHandler:
 
         logger.info(f"🤖 Processing message from {user_name} (ID: {user_id}): {text[:100]}...")
 
+        # === TYPING INDICATOR: Показываем что бот печатает ===
+        try:
+            self.bot.send_chat_action(chat_id, "typing")
+            logger.debug(f"⌨️ Typing indicator sent to chat {chat_id}")
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось отправить typing indicator: {e}")
+
+        # Создаем фоновую задачу для периодического обновления typing (каждые 4 секунды)
+        typing_active = True
+
+        async def keep_typing():
+            """Периодически отправляет typing action пока обрабатывается сообщение"""
+            try:
+                while typing_active:
+                    await asyncio.sleep(4)  # Отправляем каждые 4 секунды (typing живет 5 сек)
+                    if typing_active:  # Проверяем еще раз после sleep
+                        try:
+                            self.bot.send_chat_action(chat_id, "typing")
+                            logger.debug(f"⌨️ Typing indicator refreshed for chat {chat_id}")
+                        except:
+                            pass  # Игнорируем ошибки фонового обновления
+            except asyncio.CancelledError:
+                pass
+
+        typing_task = asyncio.create_task(keep_typing())
+
         try:
             # === СОХРАНЕНИЕ В БД: Шаг 1 - Сохранить/обновить чат ===
             try:
@@ -150,6 +176,11 @@ class MessageHandler:
             logger.error(f"❌ Ошибка обработки сообщения от {user_name}: {e}")
             error_message = "Извините, произошла техническая ошибка. Попробуйте написать снова."
             self.bot.send_message(chat_id, error_message)
+        finally:
+            # Останавливаем typing indicator
+            typing_active = False
+            typing_task.cancel()
+            logger.debug(f"⌨️ Typing indicator stopped for chat {chat_id}")
 
     async def handle_regular_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
         """Обработка обычных сообщений"""
