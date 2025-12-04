@@ -28,6 +28,67 @@ class MessageHandler:
         self.user_timers = {}       # user_id -> asyncio.Task
         self.BUFFER_TIMEOUT = 3.0   # секунды ожидания между сообщениями
 
+        # TELEGRAM LIMITS
+        self.TELEGRAM_MAX_MESSAGE_LENGTH = 4096  # Telegram лимит символов в сообщении
+
+    def _split_long_message(self, text: str, max_length: int = 4096) -> list:
+        """
+        Разбивает длинное сообщение на части по max_length символов.
+        Старается разбивать по параграфам (\n\n) или предложениям.
+        """
+        if len(text) <= max_length:
+            return [text]
+
+        parts = []
+        remaining = text
+
+        while len(remaining) > max_length:
+            # Ищем последний перевод строки перед лимитом
+            split_pos = remaining.rfind('\n\n', 0, max_length)
+            if split_pos == -1:
+                split_pos = remaining.rfind('\n', 0, max_length)
+            if split_pos == -1:
+                split_pos = remaining.rfind('. ', 0, max_length)
+            if split_pos == -1:
+                split_pos = remaining.rfind(' ', 0, max_length)
+            if split_pos == -1:
+                # Принудительная разбивка если не нашли хорошее место
+                split_pos = max_length
+
+            parts.append(remaining[:split_pos].strip())
+            remaining = remaining[split_pos:].strip()
+
+        if remaining:
+            parts.append(remaining)
+
+        return parts
+
+    def send_long_message(self, chat_id: int, text: str, **kwargs):
+        """
+        Отправляет длинное сообщение, разбивая его на части если нужно.
+        """
+        if len(text) <= self.TELEGRAM_MAX_MESSAGE_LENGTH:
+            # Сообщение помещается в один
+            self.bot.send_message(chat_id, text, **kwargs)
+            return
+
+        # Разбиваем на части
+        parts = self._split_long_message(text, self.TELEGRAM_MAX_MESSAGE_LENGTH)
+        logger.info(f"📨 Разбиваем длинное сообщение ({len(text)} символов) на {len(parts)} частей")
+
+        # Отправляем каждую часть
+        for i, part in enumerate(parts, 1):
+            if len(parts) > 1:
+                # Добавляем номер части если их несколько
+                part_marker = f"[{i}/{len(parts)}]\n\n" if i == 1 else f"\n\n[{i}/{len(parts)}]"
+                if i == 1:
+                    part = part_marker + part
+                else:
+                    part = part + part_marker
+
+            self.bot.send_message(chat_id, part, **kwargs)
+            logger.debug(f"📤 Отправлена часть {i}/{len(parts)} ({len(part)} символов)")
+
     async def process_buffered_messages(self, user_id: int):
         """
         Обрабатывает накопленные сообщения пользователя после истечения таймера.
@@ -124,8 +185,8 @@ class MessageHandler:
                 response = await self.agent.generate_response(text, session_id, user_name)
                 ai_model = getattr(self.agent, 'current_model', 'unknown')
 
-                # Отправляем ответ
-                self.bot.send_message(chat_id, response)
+                # Отправляем ответ (автоматически разбивается если > 4096 символов)
+                self.send_long_message(chat_id, response)
                 logger.info(f"✅ Ответ отправлен пользователю {user_name}")
 
                 # === СОХРАНЕНИЕ В БД: Шаг 2 - Сохранить сообщение + ответ бота ===
@@ -154,7 +215,7 @@ class MessageHandler:
             else:
                 # Fallback если AI недоступен
                 fallback_response = self._get_fallback_response(text)
-                self.bot.send_message(chat_id, fallback_response)
+                self.send_long_message(chat_id, fallback_response)
 
                 # Сохраняем fallback ответ
                 if chat_record:
@@ -175,7 +236,7 @@ class MessageHandler:
         except Exception as e:
             logger.error(f"❌ Ошибка обработки сообщения от {user_name}: {e}")
             error_message = "Извините, произошла техническая ошибка. Попробуйте написать снова."
-            self.bot.send_message(chat_id, error_message)
+            self.send_long_message(chat_id, error_message)
         finally:
             # Останавливаем typing indicator
             typing_active = False
