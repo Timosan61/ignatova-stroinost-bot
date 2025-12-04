@@ -282,11 +282,22 @@ class TextilProAgent:
             print(f"⚠️ Zep клиент не инициализирован, используем локальную память для {session_id}")
             self.add_to_local_session(session_id, user_message, bot_response)
             return False
-            
+
         try:
+            # === ZEP MESSAGE LIMIT: Обрезаем сообщения до 2500 символов ===
+            MAX_ZEP_MESSAGE_LENGTH = 2500
+
+            if len(user_message) > MAX_ZEP_MESSAGE_LENGTH:
+                logger.warning(f"⚠️ User message exceeds Zep limit ({len(user_message)} > {MAX_ZEP_MESSAGE_LENGTH}), truncating...")
+                user_message = user_message[:MAX_ZEP_MESSAGE_LENGTH] + "\n[...обрезано для Zep]"
+
+            if len(bot_response) > MAX_ZEP_MESSAGE_LENGTH:
+                logger.warning(f"⚠️ Bot response exceeds Zep limit ({len(bot_response)} > {MAX_ZEP_MESSAGE_LENGTH}), truncating...")
+                bot_response = bot_response[:MAX_ZEP_MESSAGE_LENGTH] + "\n[...обрезано для Zep]"
+
             # Используем имя пользователя или ID для роли
             user_role = user_name if user_name else f"User_{session_id.split('_')[-1][:6]}"
-            
+
             messages = [
                 Message(
                     role=user_role,  # Имя пользователя вместо generic "user"

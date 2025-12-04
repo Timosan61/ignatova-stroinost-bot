@@ -15,7 +15,7 @@ import sys
 import logging
 import asyncio
 from datetime import datetime
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, BackgroundTasks
 import telebot
 
 # Добавляем путь для импорта модулей
@@ -150,45 +150,72 @@ async def root():
         "hint": "Используйте /webhook/set в браузере для установки webhook"
     }
 
-@app.post("/webhook")
-async def process_webhook(request: Request):
-    """Главный webhook обработчик"""
+async def process_update_in_background(update_dict: dict):
+    """
+    Обработка update в фоновом режиме.
+    КРИТИЧНО: Эта функция выполняется ПОСЛЕ отправки HTTP 200 ответа Telegram.
+    Это предотвращает повторные вызовы webhook от Telegram.
+    """
     try:
-        update_dict = await request.json()
-        logger.info(f"📨 Получен update: {update_dict.get('update_id', 'unknown')}")
-        
+        update_id = update_dict.get('update_id', 'unknown')
+        logger.info(f"🔄 Background processing update: {update_id}")
+
         # Обработка Business Connection
         if "business_connection" in update_dict:
             conn_data = update_dict["business_connection"]
-            return business_handler.handle_business_connection(conn_data)
-        
+            business_handler.handle_business_connection(conn_data)
+
         # Обработка Business сообщений
         elif "business_message" in update_dict:
             message_data = update_dict["business_message"]
-            return await business_handler.handle_business_message(message_data)
-        
+            await business_handler.handle_business_message(message_data)
+
         # Обработка обычных сообщений
         elif "message" in update_dict:
             message_data = update_dict["message"]
-            
+
             # Голосовые сообщения
             if "voice" in message_data:
-                return await message_handler.handle_voice_message(message_data)
+                await message_handler.handle_voice_message(message_data)
             # Текстовые сообщения
             elif "text" in message_data:
-                return await message_handler.handle_regular_message(message_data)
+                await message_handler.handle_regular_message(message_data)
             else:
                 logger.info("📋 Пропущено сообщение без текста/голоса")
-                return {"ok": True, "action": "ignored_non_text_message"}
-        
+
         # Неизвестный тип update
         else:
             logger.info(f"❓ Неизвестный тип update: {list(update_dict.keys())}")
-            return {"ok": True, "action": "ignored_unknown_update"}
-            
+
+        logger.info(f"✅ Background processing complete for update: {update_id}")
+
     except Exception as e:
-        logger.error(f"❌ Ошибка webhook: {e}")
-        return {"ok": False, "error": str(e)}
+        logger.error(f"❌ Ошибка background processing: {e}")
+
+@app.post("/webhook")
+async def process_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Главный webhook обработчик.
+
+    КРИТИЧНО: Сразу возвращает HTTP 200 OK Telegram, затем обрабатывает update в фоне.
+    Это предотвращает повторные вызовы webhook от Telegram (которые вызывали 3x дублирование).
+    """
+    try:
+        update_dict = await request.json()
+        update_id = update_dict.get('update_id', 'unknown')
+        logger.info(f"📨 Получен webhook update: {update_id}")
+
+        # Добавляем обработку в фоновую задачу
+        background_tasks.add_task(process_update_in_background, update_dict)
+
+        # СРАЗУ возвращаем HTTP 200 OK
+        logger.info(f"⚡ Немедленный HTTP 200 для update: {update_id}")
+        return {"ok": True, "update_id": update_id}
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка webhook parsing: {e}")
+        # Даже при ошибке парсинга, возвращаем OK чтобы Telegram не повторял
+        return {"ok": True, "error": "parsing_failed"}
 
 @app.get("/health")
 async def health_check():
