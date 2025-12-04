@@ -375,7 +375,7 @@ class TextilProAgent:
         
         return "\n".join(history) if history else ""
     
-    async def call_llm(self, messages: list, max_tokens: int = 1000, temperature: float = 0.5) -> str:
+    async def call_llm(self, messages: list, max_completion_tokens: int = 1000, temperature: float = 0.5) -> str:
         """
         Роутер LLM запросов с fallback между OpenAI и Anthropic
 
@@ -397,7 +397,7 @@ class TextilProAgent:
                     self.openai_client.chat.completions.create(
                         model=OPENAI_MODEL,  # Явно фиксируем gpt-4o-mini (быстрее)
                         messages=messages,
-                        max_tokens=max_tokens,
+                        max_completion_tokens=max_completion_tokens,
                         temperature=temperature
                     ),
                     timeout=AI_REQUEST_TIMEOUT
@@ -443,7 +443,7 @@ class TextilProAgent:
                 response = await asyncio.wait_for(
                     self.anthropic_client.messages.create(
                         model=ANTHROPIC_MODEL,
-                        max_tokens=max_tokens,
+                        max_tokens=max_completion_tokens,  # Anthropic использует max_tokens, но значение из max_completion_tokens
                         temperature=temperature,
                         system=system_message,
                         messages=user_messages
@@ -580,7 +580,7 @@ class TextilProAgent:
             if self.openai_client or self.anthropic_client:
                 try:
                     logger.info(f"🤖 Генерируем ответ для: '{user_message[:50]}...'")
-                    bot_response = await self.call_llm(messages, max_tokens=2000, temperature=0.5)
+                    bot_response = await self.call_llm(messages, max_completion_tokens=2000, temperature=0.5)
 
                     # GPT сам добавляет источники согласно инструкции в system_prompt
                     # Автоматическое добавление убрано чтобы избежать дублирования
