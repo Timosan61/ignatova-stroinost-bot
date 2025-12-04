@@ -48,7 +48,12 @@ SEARCH_LIMIT = int(os.getenv('SEARCH_LIMIT', '10'))  # Количество ре
 # Абсолютный путь к файлу инструкций
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INSTRUCTION_FILE = os.path.join(BASE_DIR, 'data', 'instruction.json')
-OPENAI_MODEL = 'gpt-4o'
+
+# OpenAI Model Configuration
+# Поддерживает env переменную для гибкого переключения между моделями
+# Default: GPT-5.1 (gpt-5.1-2025-11-13) - улучшенное reasoning для длинных диалогов
+# Rollback: export OPENAI_MODEL=gpt-4o
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.1-2025-11-13')
 ANTHROPIC_MODEL = 'claude-3-5-sonnet-20241022'
 
 # Настройки голосовых сообщений
